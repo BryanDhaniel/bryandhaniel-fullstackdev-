@@ -30,11 +30,10 @@ netstat -ano | grep LISTENING | grep ":5433"
 To manage it, open **Services** (`Win+R` → `services.msc`) and look for
 `postgresql-x64-18`, or use pgAdmin from the Start menu.
 
-> **Why not port 5432?** An older embedded PostgreSQL 16 still has its data on
-> disk in `~/.workbuddy-ai/binaries/pgsql/`. It is retired and should stay
-> stopped — 5432 belongs to nothing now. If you ever start it by accident,
-> stop it again, because two databases with the same name is a good way to
-> edit the wrong one.
+> **Why not port 5432?** An older embedded PostgreSQL 16 used to hold this
+> data on port `5432`. It has been replaced and removed entirely — port 5432
+> now belongs to nothing. PostgreSQL 18 on `5433` is the only database
+> involved, so there is no chance of editing the wrong one.
 
 ---
 
