@@ -1,43 +1,43 @@
-# IndoKerja.id — API Documentation
+# IndoKerja.id — Dokumentasi API
 
-REST API for the IndoKerja.id job application platform.
+REST API untuk platform lamaran kerja IndoKerja.id.
 
 - **Base URL:** `http://localhost:3000/api`
-- **Interactive docs (Swagger UI):** `http://localhost:3000/api/docs`
-- **OpenAPI JSON:** `http://localhost:3000/api/docs-json` (importable into Postman/Insomnia)
-- **Content type:** `application/json` for all request and response bodies
+- **Dokumentasi interaktif (Swagger UI):** `http://localhost:3000/api/docs`
+- **OpenAPI JSON:** `http://localhost:3000/api/docs-json` (bisa diimpor ke Postman/Insomnia)
+- **Content type:** `application/json` untuk semua request dan response body
 
 ---
 
-## Table of contents
+## Daftar isi
 
-1. [Authentication model](#1-authentication-model)
-2. [Roles and permissions](#2-roles-and-permissions)
-3. [Status vocabulary](#3-status-vocabulary)
-4. [Error format](#4-error-format)
-5. [Endpoints](#5-endpoints)
+1. [Model autentikasi](#1-model-autentikasi)
+2. [Role dan izin](#2-role-dan-izin)
+3. [Kosakata status](#3-kosakata-status)
+4. [Format error](#4-format-error)
+5. [Endpoint](#5-endpoint)
    - [Auth](#51-auth)
    - [Jobs](#52-jobs)
    - [Applications](#53-applications)
-6. [Requirement traceability](#6-requirement-traceability)
-7. [Quick start with curl](#7-quick-start-with-curl)
+6. [Ketertelusuran requirement](#6-ketertelusuran-requirement)
+7. [Mulai cepat dengan curl](#7-mulai-cepat-dengan-curl)
 
 ---
 
-## 1. Authentication model
+## 1. Model autentikasi
 
-Two tokens, two different lifetimes, two different storage locations. The reasoning is
-recorded in [`docs/adr/0004`](./adr/0004-access-token-in-memory-refresh-token-httponly-cookie.md).
+Dua token, dua masa hidup yang berbeda, dua lokasi penyimpanan yang berbeda. Alasannya
+tercatat di [`docs/adr/0004`](./adr/0004-access-token-in-memory-refresh-token-httponly-cookie.md).
 
 | | Access token | Refresh token |
 |---|---|---|
-| **Format** | JWT (signed, HS256) | Opaque random string (not a JWT) |
-| **Lifetime** | 15 minutes | 7 days |
-| **Transport** | `Authorization: Bearer <token>` | `refresh_token` httpOnly cookie |
-| **Stored as** | Nothing — held in client memory only | bcrypt hash in the `refresh_tokens` table |
-| **Revocable** | No (expires on its own) | Yes (server-side revocation) |
+| **Format** | JWT (ditandatangani, HS256) | String acak opaque (bukan JWT) |
+| **Masa hidup** | 15 menit | 7 hari |
+| **Transport** | `Authorization: Bearer <token>` | cookie httpOnly `refresh_token` |
+| **Disimpan sebagai** | Tidak disimpan — hanya ada di memori klien | hash bcrypt di tabel `refresh_tokens` |
+| **Bisa dicabut** | Tidak (kedaluwarsa sendiri) | Ya (pencabutan di sisi server) |
 
-### Flow
+### Alur
 
 ```
 POST /api/auth/login
@@ -45,24 +45,24 @@ POST /api/auth/login
   -> Set-Cookie: refresh_token=<opaque>; HttpOnly; SameSite=Lax; Path=/
 ```
 
-1. The client keeps `accessToken` **in memory**. It does not persist it, so closing the
-   tab ends the client's knowledge of it.
-2. When the access token expires, any request returns `401`. The client calls
-   `POST /api/auth/refresh`; the browser attaches the cookie automatically and a **new**
-   access token is returned.
-3. Refresh tokens **rotate**: each successful refresh revokes the token that was presented
-   and issues a replacement. Presenting an already-revoked token is treated as theft and
-   **revokes every active session for that user**, forcing a fresh login on all devices.
-   (The scope is the user, not a per-device token chain — the reasoning is in
+1. Klien menyimpan `accessToken` **di memori**. Token ini tidak dipersistenkan, jadi menutup
+   tab berarti klien kehilangan token tersebut.
+2. Saat access token kedaluwarsa, request apa pun mengembalikan `401`. Klien memanggil
+   `POST /api/auth/refresh`; browser melampirkan cookie secara otomatis dan access token
+   **baru** dikembalikan.
+3. Refresh token **di-rotasi**: setiap refresh yang berhasil mencabut token yang dikirim dan
+   menerbitkan penggantinya. Mengirim token yang sudah dicabut dianggap sebagai pencurian dan
+   **mencabut semua sesi aktif milik user tersebut**, sehingga semua perangkat dipaksa login
+   ulang. (Cakupannya adalah user, bukan rantai token per perangkat — alasannya ada di
    [ADR-0004](./adr/0004-access-token-in-memory-refresh-token-httponly-cookie.md#revocation-scope).)
-4. Because of rotation, a client must never fire two refreshes concurrently. The frontend
-   collapses them into one in-flight promise (`frontend/src/api/client.ts`) — without that,
-   an ordinary race between two tabs would log the user out everywhere.
+4. Karena ada rotasi, klien tidak boleh menembakkan dua refresh secara bersamaan. Frontend
+   menggabungkannya menjadi satu promise yang sedang berjalan (`frontend/src/api/client.ts`) —
+   tanpa itu, race biasa antar dua tab akan mengeluarkan user dari semua perangkat.
 
-### Using the API from a non-browser client
+### Memakai API dari klien non-browser
 
-Cookies are a browser convenience, not a requirement. `POST /api/auth/refresh` and
-`POST /api/auth/logout` also accept the token in the JSON body:
+Cookie hanyalah kemudahan untuk browser, bukan keharusan. `POST /api/auth/refresh` dan
+`POST /api/auth/logout` juga menerima token di dalam body JSON:
 
 ```http
 POST /api/auth/refresh
@@ -71,15 +71,15 @@ Content-Type: application/json
 { "refreshToken": "<opaque token>" }
 ```
 
-The cookie takes precedence when both are supplied. For a curl-based walkthrough see
-[§7](#7-quick-start-with-curl).
+Cookie diprioritaskan bila keduanya dikirim. Untuk panduan memakai curl, lihat
+[§7](#7-mulai-cepat-dengan-curl).
 
-### Rate limits
+### Batas rate
 
-Applied globally at 100 requests / 60 seconds per IP, with tighter limits where abuse pays
-off. Exceeding a limit returns `429`.
+Diterapkan secara global sebesar 100 request / 60 detik per IP, dengan batas yang lebih ketat
+di titik yang paling menguntungkan penyalahgunaan. Melewati batas akan mengembalikan `429`.
 
-| Endpoint | Limit |
+| Endpoint | Batas |
 |---|---|
 | `POST /api/auth/register` | 5 / 60s |
 | `POST /api/auth/login` | 10 / 60s |
@@ -87,76 +87,80 @@ off. Exceeding a limit returns `429`.
 
 ---
 
-## 2. Roles and permissions
+## 2. Role dan izin
 
-A user is either a `JOB_SEEKER` or a `COMPANY`. The role is fixed at registration
-([ADR-0001](./adr/0001-single-user-table-with-role-discriminator.md)) and cannot be changed
-by any endpoint.
+Seorang user adalah `JOB_SEEKER` atau `COMPANY`. Role ini ditetapkan saat registrasi
+([ADR-0001](./adr/0001-single-user-table-with-role-discriminator.md)) dan tidak bisa diubah
+oleh endpoint mana pun.
 
-| Endpoint | Job Seeker | Company | Anonymous |
+| Endpoint | Job Seeker | Company | Anonim |
 |---|:---:|:---:|:---:|
 | `POST /api/auth/register` | — | — | ✅ |
 | `POST /api/auth/login` | — | — | ✅ |
-| `POST /api/auth/refresh` | — | — | ✅ (with cookie/token) |
-| `POST /api/auth/logout` | — | — | ✅ (with cookie/token) |
+| `POST /api/auth/refresh` | — | — | ✅ (dengan cookie/token) |
+| `POST /api/auth/logout` | — | — | ✅ (dengan cookie/token) |
 | `POST /api/auth/logout-all` | ✅ | ✅ | ❌ |
 | `GET /api/auth/me` | ✅ | ✅ | ❌ |
 | `GET /api/jobs` | ✅ | ✅ | ❌ |
 | `GET /api/jobs/:id` | ✅ | ✅ | ❌ |
 | `GET /api/jobs/mine` | ❌ `403` | ✅ | ❌ |
 | `POST /api/jobs` | ❌ `403` | ✅ | ❌ |
-| `PATCH /api/jobs/:id` | ❌ `403` | ✅ (own only) | ❌ |
+| `PATCH /api/jobs/:id` | ❌ `403` | ✅ (hanya milik sendiri) | ❌ |
 | `POST /api/jobs/:jobId/applications` | ✅ | ❌ `403` | ❌ |
 | `GET /api/applications/me` | ✅ | ❌ `403` | ❌ |
-| `GET /api/applications/me/:id` | ✅ (own only) | ❌ `403` | ❌ |
-| `GET /api/jobs/:jobId/applications` | ❌ `403` | ✅ (own job only) | ❌ |
-| `PATCH /api/applications/:id/status` | ❌ `403` | ✅ (own job only) | ❌ |
+| `GET /api/applications/me/:id` | ✅ (hanya milik sendiri) | ❌ `403` | ❌ |
+| `GET /api/jobs/:jobId/applications` | ❌ `403` | ✅ (hanya job sendiri) | ❌ |
+| `PATCH /api/applications/:id/status` | ❌ `403` | ✅ (hanya job sendiri) | ❌ |
 
-### `403` versus `404` — read this before debugging
+### `403` versus `404` — baca ini sebelum debugging
 
-Two different checks happen, at two different layers
+Ada dua pemeriksaan berbeda, di dua lapisan berbeda
 ([ADR-0005](./adr/0005-authorization-guards-mutations-role-guards-reads.md)):
 
-- **Wrong role → `403 Forbidden`.** A Job Seeker calling `POST /api/jobs` is refused by a
-  role guard before any data is read.
-- **Wrong owner → `404 Not Found`.** A Company requesting candidates for *another company's*
-  job gets `404`, not `403`. Returning `403` would confirm the job exists, which lets an
-  attacker enumerate valid IDs. The resource is simply "not found" as far as the caller is
-  concerned.
+- **Role salah → `403 Forbidden`.** Job Seeker yang memanggil `POST /api/jobs` ditolak oleh
+  role guard sebelum data apa pun dibaca.
+- **Pemilik salah → `404 Not Found`.** Company yang meminta kandidat untuk job milik
+  *perusahaan lain* mendapat `404`, bukan `403`. Mengembalikan `403` akan mengonfirmasi bahwa
+  job tersebut ada, sehingga penyerang bisa menyebutkan ID yang valid satu per satu. Bagi
+  pemanggilnya, resource itu memang "tidak ditemukan".
 
-So if you are testing cross-tenant access and expect `403`, a `404` is the correct result.
+Jadi jika Anda menguji akses lintas tenant dan mengharapkan `403`, `404` adalah hasil yang
+benar.
 
 ---
 
-## 3. Status vocabulary
+## 3. Kosakata status
 
-An application has exactly one current status. The database only ever allows these five
-values (a PostgreSQL enum):
+Sebuah application memiliki tepat satu status saat ini. Database hanya mengizinkan lima nilai
+berikut (sebuah enum PostgreSQL):
 
-| Status | Meaning |
+| Status | Arti |
 |---|---|
-| `APPLIED` | The initial state, assigned by the system when the seeker applies. **Cannot be set by a Company.** |
-| `REVIEWING` | The company has opened the application. |
-| `SHORTLISTED` | The applicant is moving forward. |
-| `REJECTED` | The applicant is not proceeding. |
-| `ACCEPTED` | The applicant has been accepted. |
+| `APPLIED` | Status awal, ditetapkan oleh sistem saat pencari kerja melamar. **Tidak bisa di-set oleh Company.** |
+| `REVIEWING` | Perusahaan sudah membuka lamaran tersebut. |
+| `SHORTLISTED` | Pelamar dilanjutkan ke tahap berikutnya. |
+| `REJECTED` | Pelamar tidak dilanjutkan. |
+| `ACCEPTED` | Pelamar telah diterima. |
 
-**Any status may follow any other** — including `REJECTED` → `REVIEWING`, because a company
-reopening a candidacy after an interview is a real workflow, not a data error.
+**Status apa pun boleh diikuti status apa pun** — termasuk `REJECTED` → `REVIEWING`, karena
+perusahaan yang membuka kembali kandidat setelah interview adalah alur kerja yang nyata, bukan
+kesalahan data.
 
-`APPLIED` is rejected with `400` if a Company tries to set it. It is the system-assigned
-initial state; allowing a company to write it would let them rewrite history while the
-history table still showed the truth.
+`APPLIED` ditolak dengan `400` jika Company mencoba menetapkannya. Itu adalah status awal
+yang diberikan sistem; membiarkan perusahaan menulisnya berarti mereka bisa menulis ulang
+sejarah sementara tabel history tetap menunjukkan yang sebenarnya.
 
-Every accepted change appends a row to the application history. Setting a status that is
-already the current status is a **no-op**: it returns `200` with `changed: false` and writes
-no history row, so the audit trail never contains duplicate consecutive entries.
+Setiap perubahan yang diterima menambahkan satu baris ke history application. Menetapkan
+status yang **sudah** menjadi status saat ini adalah **no-op**: mengembalikan `200` dengan
+`changed: false` dan tidak menulis baris history, sehingga jejak audit tidak pernah memuat
+entri berurutan yang duplikat.
 
 ---
 
-## 4. Error format
+## 4. Format error
 
-Every error — validation, auth, database, unhandled — returns the same shape:
+Setiap error — validasi, auth, database, maupun yang tidak tertangani — mengembalikan bentuk
+yang sama:
 
 ```json
 {
@@ -168,8 +172,8 @@ Every error — validation, auth, database, unhandled — returns the same shape
 }
 ```
 
-`message` is a **string** for most errors and an **array of strings** for `400` validation
-failures (one entry per invalid field), so clients should handle both:
+`message` berupa **string** untuk sebagian besar error, dan **array of string** untuk kegagalan
+validasi `400` (satu entri per field yang tidak valid), jadi klien harus menangani keduanya:
 
 ```json
 {
@@ -184,35 +188,35 @@ failures (one entry per invalid field), so clients should handle both:
 }
 ```
 
-### Status codes used
+### Kode status yang dipakai
 
-| Code | Meaning in this API |
+| Kode | Arti di API ini |
 |---|---|
-| `200` | Success (read, update, status change) |
-| `201` | Created (register, create job, apply) |
-| `204` | Success with no body (logout, logout-all) |
-| `400` | Validation failed, salary range inverted, job inactive, attempting to set `APPLIED` |
-| `401` | Missing/expired/invalid access token, bad credentials, unusable refresh token |
-| `403` | Authenticated but the wrong **role** for this endpoint |
-| `404` | Resource does not exist **or is not owned by the caller** (deliberate) |
-| `409` | Duplicate — email already registered, or already applied to this job |
-| `429` | Rate limit exceeded |
-| `500` | Unexpected server error (internals are never leaked) |
+| `200` | Berhasil (baca, update, ubah status) |
+| `201` | Dibuat (register, buat job, melamar) |
+| `204` | Berhasil tanpa body (logout, logout-all) |
+| `400` | Validasi gagal, rentang gaji terbalik, job tidak aktif, mencoba menetapkan `APPLIED` |
+| `401` | Access token hilang/kedaluwarsa/tidak valid, kredensial salah, refresh token tidak bisa dipakai |
+| `403` | Sudah terautentikasi tetapi **role**-nya salah untuk endpoint ini |
+| `404` | Resource tidak ada **atau bukan milik pemanggil** (disengaja) |
+| `409` | Duplikat — email sudah terdaftar, atau sudah melamar job ini |
+| `429` | Batas rate terlampaui |
+| `500` | Error server tak terduga (isi internal tidak pernah bocor) |
 
-### Validation behaviour
+### Perilaku validasi
 
-The global `ValidationPipe` runs with `whitelist: true` and `forbidNonWhitelisted: true`.
-Consequences worth knowing when calling the API:
+`ValidationPipe` global berjalan dengan `whitelist: true` dan `forbidNonWhitelisted: true`.
+Konsekuensi yang perlu diketahui saat memanggil API:
 
-- An **unknown property** in a request body is a `400`, not silently ignored. A typo'd field
-  name surfaces immediately.
-- A property that is not part of the DTO is stripped before it can reach a service, so a
-  client cannot smuggle in something like `companyUserId` and have it take effect.
-- Enum values are validated strictly — `"full_time"` is rejected; it must be `"FULL_TIME"`.
+- **Properti yang tidak dikenal** di body request menghasilkan `400`, bukan diabaikan diam-diam.
+  Nama field yang salah ketik langsung terlihat.
+- Properti yang bukan bagian dari DTO dibuang sebelum bisa mencapai service, jadi klien tidak
+  bisa menyelundupkan sesuatu seperti `companyUserId` agar ikut berpengaruh.
+- Nilai enum divalidasi secara ketat — `"full_time"` ditolak; harus `"FULL_TIME"`.
 
 ---
 
-## 5. Endpoints
+## 5. Endpoint
 
 ### 5.1 Auth
 
@@ -220,17 +224,18 @@ Consequences worth knowing when calling the API:
 
 #### `POST /api/auth/register`
 
-Creates a user. Registering as a `COMPANY` also creates the company profile **in the same
-transaction**, so a company can never exist without a name to display on its postings.
+Membuat user. Registrasi sebagai `COMPANY` juga membuat profil perusahaan **dalam transaksi
+yang sama**, sehingga perusahaan tidak akan pernah ada tanpa nama untuk ditampilkan pada
+lowongannya.
 
-**Auth:** none · **Rate limit:** 5/60s
+**Auth:** tidak ada · **Batas rate:** 5/60s
 
-| Field | Type | Required | Notes |
+| Field | Tipe | Wajib | Catatan |
 |---|---|---|---|
-| `email` | string | ✅ | Valid email, max 254 chars, unique |
-| `password` | string | ✅ | Min 8, max 72 chars (bcrypt truncates beyond 72 bytes) |
-| `role` | `"JOB_SEEKER"` \| `"COMPANY"` | ✅ | Fixed for the account's lifetime |
-| `companyName` | string | ✅ when `role=COMPANY` | Non-blank, max 150 chars. Ignored for `JOB_SEEKER` |
+| `email` | string | ✅ | Email valid, maks 254 karakter, unik |
+| `password` | string | ✅ | Min 8, maks 72 karakter (bcrypt memotong di atas 72 byte) |
+| `role` | `"JOB_SEEKER"` \| `"COMPANY"` | ✅ | Tetap sepanjang usia akun |
+| `companyName` | string | ✅ saat `role=COMPANY` | Tidak boleh kosong, maks 150 karakter. Diabaikan untuk `JOB_SEEKER` |
 
 ```json
 {
@@ -241,29 +246,30 @@ transaction**, so a company can never exist without a name to display on its pos
 }
 ```
 
-**Response `201`** — same shape as login, plus a `Set-Cookie` header.
+**Response `201`** — bentuk yang sama dengan login, ditambah header `Set-Cookie`.
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | Validation failed, or `companyName` missing/blank while `role=COMPANY` |
+| `400` | Validasi gagal, atau `companyName` hilang/kosong saat `role=COMPANY` |
 | `409` | `"An account with this email already exists"` |
-| `429` | Rate limit exceeded |
+| `429` | Batas rate terlampaui |
 
-Note that `companyName` is validated with `@ValidateIf`, not `@IsOptional()`. The latter
-short-circuits *every* validator on the property when the value is `undefined`, which would
-have made the field effectively optional for companies. Required text fields across the API
-also reject whitespace-only values, not just empty strings — a title of `"   "` is a `400`,
-because the service would otherwise trim it to `""` and store a nameless job.
+Perhatikan bahwa `companyName` divalidasi dengan `@ValidateIf`, bukan `@IsOptional()`.
+Yang terakhir akan melewati *semua* validator pada properti tersebut saat nilainya
+`undefined`, sehingga field itu praktis menjadi opsional bagi perusahaan. Field teks wajib di
+seluruh API juga menolak nilai yang hanya berisi spasi, bukan cuma string kosong — judul
+bernilai `"   "` adalah `400`, karena jika tidak, service akan memangkasnya menjadi `""` dan
+menyimpan job tanpa nama.
 
 ---
 
 #### `POST /api/auth/login`
 
-**Auth:** none · **Rate limit:** 10/60s
+**Auth:** tidak ada · **Batas rate:** 10/60s
 
-| Field | Type | Required |
+| Field | Tipe | Wajib |
 |---|---|---|
 | `email` | string | ✅ |
 | `password` | string | ✅ |
@@ -284,13 +290,13 @@ because the service would otherwise trim it to `""` and store a nameless job.
 }
 ```
 
-Response header:
+Header response:
 
 ```
 Set-Cookie: refresh_token=<opaque>; Max-Age=604800; Path=/; Expires=...; HttpOnly; SameSite=Lax
 ```
 
-A `COMPANY` user additionally carries `companyProfile`:
+User `COMPANY` juga membawa `companyProfile`:
 
 ```json
 "companyProfile": {
@@ -301,78 +307,79 @@ A `COMPANY` user additionally carries `companyProfile`:
 }
 ```
 
-The refresh token is **never** present in the JSON body — only in the httpOnly cookie, so
-page JavaScript cannot read it.
+Refresh token **tidak pernah** ada di body JSON — hanya di cookie httpOnly, sehingga JavaScript
+halaman tidak bisa membacanya.
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | Validation failed |
-| `401` | `"Invalid email or password"` — returned identically for an unknown email *and* a wrong password, so the response cannot be used to discover which addresses are registered |
-| `429` | Rate limit exceeded |
+| `400` | Validasi gagal |
+| `401` | `"Invalid email or password"` — dikembalikan identik untuk email yang tidak dikenal *maupun* password yang salah, sehingga responsnya tidak bisa dipakai untuk mencari tahu alamat email mana yang terdaftar |
+| `429` | Batas rate terlampaui |
 
 ---
 
 #### `POST /api/auth/refresh`
 
-Exchanges a valid refresh token for a new access token. The presented token is revoked and
-replaced (rotation).
+Menukar refresh token yang valid dengan access token baru. Token yang dikirim akan dicabut dan
+diganti (rotasi).
 
-**Auth:** refresh token via httpOnly cookie **or** request body · **Rate limit:** 30/60s
+**Auth:** refresh token via cookie httpOnly **atau** body request · **Batas rate:** 30/60s
 
-| Field | Type | Required |
+| Field | Tipe | Wajib |
 |---|---|---|
-| `refreshToken` | string | ❌ — omit when sending the cookie |
+| `refreshToken` | string | ❌ — kosongkan bila mengirim cookie |
 
-**Response `200`** — identical shape to login, with a new `Set-Cookie`.
+**Response `200`** — bentuk identik dengan login, dengan `Set-Cookie` baru.
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | Malformed body |
-| `401` | Token missing, expired, revoked, or already used. Reuse revokes every session for that user. |
+| `400` | Body tidak valid |
+| `401` | Token hilang, kedaluwarsa, dicabut, atau sudah dipakai. Penggunaan ulang mencabut semua sesi milik user tersebut. |
 
 ---
 
 #### `POST /api/auth/logout`
 
-Revokes the presented refresh token server-side and clears the cookie.
+Mencabut refresh token yang dikirim di sisi server dan menghapus cookie.
 
-**Auth:** refresh token via cookie or body · **Rate limit:** global (100/60s)
+**Auth:** refresh token via cookie atau body · **Batas rate:** global (100/60s)
 
-Deliberately does **not** require a valid access token: logging out with an expired access
-token must still work, otherwise a session is impossible to end cleanly.
+Sengaja **tidak** mewajibkan access token yang valid: logout dengan access token yang sudah
+kedaluwarsa harus tetap berhasil, jika tidak, sebuah sesi mustahil diakhiri dengan bersih.
 
-**Response `204`** — no body.
+**Response `204`** — tanpa body.
 
 ---
 
 #### `POST /api/auth/logout-all`
 
-Revokes every refresh token belonging to the authenticated user — "log out everywhere".
+Mencabut semua refresh token milik user yang terautentikasi — "logout dari semua tempat".
 
 **Auth:** Bearer access token
 
-**Response `204`** — no body.
+**Response `204`** — tanpa body.
 
-**Errors:** `401` when not authenticated.
+**Error:** `401` bila belum terautentikasi.
 
 ---
 
 #### `GET /api/auth/me`
 
-Returns the authenticated user's profile.
+Mengembalikan profil user yang terautentikasi.
 
 **Auth:** Bearer access token
 
-**Response `200`** — a `UserResponseDto` (the same object as `login`'s `user` field).
+**Response `200`** — sebuah `UserResponseDto` (objek yang sama dengan field `user` pada `login`).
 
-Used by the frontend on boot: because the access token lives in memory only, a page reload
-loses it, and the app calls `/auth/me` after a silent refresh to recover the session.
+Dipakai frontend saat boot: karena access token hanya hidup di memori, reload halaman akan
+menghilangkannya, dan aplikasi memanggil `/auth/me` setelah refresh senyap untuk memulihkan
+sesi.
 
-**Errors:** `401` when not authenticated.
+**Error:** `401` bila belum terautentikasi.
 
 ---
 
@@ -382,18 +389,18 @@ loses it, and the app calls `/auth/me` after a silent refresh to recover the ses
 
 #### `GET /api/jobs`
 
-Paginated job listing. **Implements requirement 2.**
+Daftar job dengan paginasi. **Mengimplementasikan requirement 2.**
 
-**Auth:** any authenticated user (Job Seeker or Company)
+**Auth:** semua user yang terautentikasi (Job Seeker atau Company)
 
-**Query parameters**
+**Query parameter**
 
-| Name | Type | Default | Notes |
+| Nama | Tipe | Default | Catatan |
 |---|---|---|---|
-| `page` | integer ≥ 1 | `1` | 1-based |
-| `limit` | integer 1–50 | `10` | Values above 50 are rejected with `400` |
-| `q` | string ≤ 100 | — | Case-insensitive across job title, company name, and description |
-| `location` | string ≤ 100 | — | Case-insensitive partial match |
+| `page` | integer ≥ 1 | `1` | Berbasis 1 |
+| `limit` | integer 1–50 | `10` | Nilai di atas 50 ditolak dengan `400` |
+| `q` | string ≤ 100 | — | Tidak peka huruf besar/kecil, mencakup judul job, nama perusahaan, dan deskripsi |
+| `location` | string ≤ 100 | — | Pencocokan sebagian, tidak peka huruf besar/kecil |
 | `jobType` | enum | — | `FULL_TIME`, `PART_TIME`, `CONTRACT`, `INTERNSHIP`, `FREELANCE` |
 
 **Response `200`**
@@ -430,32 +437,34 @@ Paginated job listing. **Implements requirement 2.**
 }
 ```
 
-Notes:
+Catatan:
 
-- **Only active jobs are returned.** Inactive postings are invisible here to everyone,
-  including their owner (who sees them via `GET /api/jobs/mine`).
-- **`hasApplied`** tells the calling Job Seeker whether they already applied, so the UI can
-  disable the Apply button before the user clicks it. It is always `false` for a Company.
-- **`salaryMin`/`salaryMax` may both be `null`**, meaning the salary is undisclosed
-  ("Negotiable"). This is deliberately distinct from a salary of `0`. Do not assume the
-  fields are present.
+- **Hanya job aktif yang dikembalikan.** Lowongan tidak aktif tidak terlihat di sini oleh
+  siapa pun, termasuk pemiliknya (yang melihatnya lewat `GET /api/jobs/mine`).
+- **`hasApplied`** memberi tahu Job Seeker yang memanggil apakah mereka sudah melamar, sehingga
+  UI bisa menonaktifkan tombol Apply sebelum user mengkliknya. Nilainya selalu `false` untuk
+  Company.
+- **`salaryMin`/`salaryMax` bisa keduanya `null`**, artinya gaji tidak diungkapkan
+  ("Negotiable"). Ini sengaja dibuat berbeda dari gaji bernilai `0`. Jangan mengasumsikan
+  kedua field itu selalu ada.
 
-**Errors:** `400` (bad `limit`, unknown `jobType`, or unknown query parameter), `401`.
+**Error:** `400` (`limit` salah, `jobType` tidak dikenal, atau query parameter tidak dikenal),
+`401`.
 
 ---
 
 #### `GET /api/jobs/mine`
 
-The authenticated company's own postings, **including inactive ones**, each with an
-applicant count. **Supports requirement 6** (managing your own postings).
+Lowongan milik perusahaan yang terautentikasi, **termasuk yang tidak aktif**, masing-masing
+dengan jumlah pelamar. **Mendukung requirement 6** (mengelola lowongan sendiri).
 
-> Route note: `/jobs/mine` is declared before `/jobs/:id`. Any client that calls
-> `GET /api/jobs/mine` expecting a job with the id `"mine"` will get this list instead —
-> ids are UUIDs, so this cannot collide in practice.
+> Catatan rute: `/jobs/mine` dideklarasikan sebelum `/jobs/:id`. Klien apa pun yang memanggil
+> `GET /api/jobs/mine` dan mengharapkan job dengan id `"mine"` akan menerima daftar ini —
+> id-nya berupa UUID, jadi dalam praktiknya hal itu tidak mungkin bentrok.
 
-**Auth:** `COMPANY` only
+**Auth:** hanya `COMPANY`
 
-**Response `200`** — array of `JobResponseDto` plus two extra fields:
+**Response `200`** — array `JobResponseDto` plus dua field tambahan:
 
 ```json
 [
@@ -469,48 +478,49 @@ applicant count. **Supports requirement 6** (managing your own postings).
 ]
 ```
 
-**Errors:** `401`, `403` (caller is a Job Seeker).
+**Error:** `401`, `403` (pemanggil adalah Job Seeker).
 
 ---
 
 #### `GET /api/jobs/:id`
 
-Job detail. **Implements requirement 3** (the detail view that precedes applying).
+Detail job. **Mengimplementasikan requirement 3** (tampilan detail yang mendahului proses
+melamar).
 
-**Auth:** any authenticated user
+**Auth:** semua user yang terautentikasi
 
-**Response `200`** — a `JobResponseDto` (same shape as a listing entry).
+**Response `200`** — sebuah `JobResponseDto` (bentuk sama dengan entri pada daftar).
 
-**Visibility rule:** an **inactive** job is returned only to the company that owns it. For
-everyone else — including other companies — the response is `404`. This keeps a withdrawn
-posting from being discovered by ID.
+**Aturan visibilitas:** job yang **tidak aktif** hanya dikembalikan kepada perusahaan yang
+memilikinya. Bagi yang lain — termasuk perusahaan lain — responsnya `404`. Ini mencegah
+lowongan yang sudah ditarik ditemukan lewat ID-nya.
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | `:id` is not a valid UUID |
-| `401` | Not authenticated |
-| `404` | No such job, **or** the job is inactive and the caller does not own it |
+| `400` | `:id` bukan UUID yang valid |
+| `401` | Belum terautentikasi |
+| `404` | Job tidak ada, **atau** job tidak aktif dan pemanggil bukan pemiliknya |
 
 ---
 
 #### `POST /api/jobs`
 
-Creates a job posting. **Implements requirement 6.**
+Membuat lowongan job. **Mengimplementasikan requirement 6.**
 
-**Auth:** `COMPANY` only
+**Auth:** hanya `COMPANY`
 
-| Field | Type | Required | Notes |
+| Field | Tipe | Wajib | Catatan |
 |---|---|---|---|
-| `title` | string | ✅ | Non-blank, ≤ 150 chars |
-| `description` | string | ✅ | Non-blank, ≤ 5000 chars |
-| `location` | string | ✅ | Non-blank, ≤ 150 chars |
-| `jobType` | enum | ✅ | One of the five `JobType` values |
-| `salaryMin` | integer ≥ 0 | ❌ | Omit **both** bounds for an undisclosed salary |
-| `salaryMax` | integer ≥ 0 | ❌ | Must be ≥ `salaryMin` |
-| `currency` | string | ❌ | Defaults to `IDR`, ≤ 10 chars |
-| `isActive` | boolean | ❌ | Defaults to `true` |
+| `title` | string | ✅ | Tidak boleh kosong, ≤ 150 karakter |
+| `description` | string | ✅ | Tidak boleh kosong, ≤ 5000 karakter |
+| `location` | string | ✅ | Tidak boleh kosong, ≤ 150 karakter |
+| `jobType` | enum | ✅ | Salah satu dari lima nilai `JobType` |
+| `salaryMin` | integer ≥ 0 | ❌ | Kosongkan **kedua** batas untuk gaji yang tidak diungkapkan |
+| `salaryMax` | integer ≥ 0 | ❌ | Harus ≥ `salaryMin` |
+| `currency` | string | ❌ | Default `IDR`, ≤ 10 karakter |
+| `isActive` | boolean | ❌ | Default `true` |
 
 ```json
 {
@@ -523,47 +533,47 @@ Creates a job posting. **Implements requirement 6.**
 }
 ```
 
-The owning company is taken **from the access token**, never from the request body — there
-is no field by which a client could post a job under another company's name.
+Perusahaan pemilik diambil **dari access token**, bukan dari body request — tidak ada field
+yang memungkinkan klien memasang job atas nama perusahaan lain.
 
-**Response `201`** — the created `JobResponseDto`.
+**Response `201`** — `JobResponseDto` yang baru dibuat.
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | Validation failed, or `salaryMin > salaryMax` |
-| `401` | Not authenticated |
-| `403` | Caller is a Job Seeker |
+| `400` | Validasi gagal, atau `salaryMin > salaryMax` |
+| `401` | Belum terautentikasi |
+| `403` | Pemanggil adalah Job Seeker |
 
 ---
 
 #### `PATCH /api/jobs/:id`
 
-Updates a job posting. Send only the fields you want to change.
+Memperbarui lowongan job. Kirim hanya field yang ingin diubah.
 
-**Auth:** `COMPANY` only, and only the job's owner
+**Auth:** hanya `COMPANY`, dan hanya pemilik job tersebut
 
-Setting `isActive: false` withdraws the posting: it disappears from `GET /api/jobs` and
-refuses new applications. **Existing applications are untouched and keep their statuses** —
-the applicant's history is not the company's to rewrite.
+Mengatur `isActive: false` menarik lowongan itu: hilang dari `GET /api/jobs` dan menolak
+lamaran baru. **Lamaran yang sudah ada tidak tersentuh dan statusnya tetap** — history pelamar
+bukan milik perusahaan untuk ditulis ulang.
 
-To clear a disclosed salary back to "Negotiable", send `null` explicitly:
+Untuk mengubah gaji yang diungkapkan kembali menjadi "Negotiable", kirim `null` secara eksplisit:
 
 ```json
 { "salaryMin": null, "salaryMax": null }
 ```
 
-**Response `200`** — the updated `JobResponseDto`.
+**Response `200`** — `JobResponseDto` yang sudah diperbarui.
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | Validation failed, `salaryMin > salaryMax`, or unknown field |
-| `401` | Not authenticated |
-| `403` | Caller is a Job Seeker |
-| `404` | No such job, **or** the job belongs to another company |
+| `400` | Validasi gagal, `salaryMin > salaryMax`, atau field tidak dikenal |
+| `401` | Belum terautentikasi |
+| `403` | Pemanggil adalah Job Seeker |
+| `404` | Job tidak ada, **atau** job milik perusahaan lain |
 
 ---
 
@@ -573,51 +583,51 @@ To clear a disclosed salary back to "Negotiable", send `null` explicitly:
 
 #### `POST /api/jobs/:jobId/applications`
 
-Applies to a job. **Implements requirements 3 and 5.**
+Melamar sebuah job. **Mengimplementasikan requirement 3 dan 5.**
 
-**Auth:** `JOB_SEEKER` only
+**Auth:** hanya `JOB_SEEKER`
 
-| Field | Type | Required | Notes |
+| Field | Tipe | Wajib | Catatan |
 |---|---|---|---|
-| `coverLetter` | string | ❌ | ≤ 3000 chars |
+| `coverLetter` | string | ❌ | ≤ 3000 karakter |
 
 ```json
 { "coverLetter": "I have five years building Node.js services..." }
 ```
 
-On success the API writes **two rows in a single transaction**: the application itself, and
-the initial `APPLIED` history entry with `changedByUserId: null` (it was the system, not a
-user, that set it). There is no state in which an application exists without a history.
+Saat berhasil, API menulis **dua baris dalam satu transaksi**: application itu sendiri, dan
+entri history `APPLIED` awal dengan `changedByUserId: null` (yang menetapkannya adalah sistem,
+bukan user). Tidak ada keadaan di mana sebuah application ada tanpa history.
 
-**The duplicate rule (requirement 5)** is enforced by a database unique constraint on
-`(jobId, applicantUserId)` — see [ADR-0003](./adr/0003-duplicate-applications-prevented-by-unique-constraint.md).
-A second attempt returns `409`. This holds even if two requests arrive simultaneously: the
-database, not application code, is the arbiter.
+**Aturan duplikat (requirement 5)** ditegakkan oleh unique constraint database pada
+`(jobId, applicantUserId)` — lihat [ADR-0003](./adr/0003-duplicate-applications-prevented-by-unique-constraint.md).
+Percobaan kedua mengembalikan `409`. Ini tetap berlaku meski dua request datang bersamaan:
+yang menjadi penengah adalah database, bukan kode aplikasi.
 
-**Response `201`** — the created application.
+**Response `201`** — application yang baru dibuat.
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | Job is inactive, or `coverLetter` too long |
-| `401` | Not authenticated |
-| `403` | Caller is a Company |
-| `404` | No such job |
+| `400` | Job tidak aktif, atau `coverLetter` terlalu panjang |
+| `401` | Belum terautentikasi |
+| `403` | Pemanggil adalah Company |
+| `404` | Job tidak ada |
 | `409` | `"You have already applied to this job"` |
 
 ---
 
 #### `GET /api/applications/me`
 
-The authenticated seeker's own applications with their current statuses.
-**Implements requirement 4.**
+Lamaran milik pencari kerja yang terautentikasi beserta statusnya saat ini.
+**Mengimplementasikan requirement 4.**
 
-**Auth:** `JOB_SEEKER` only
+**Auth:** hanya `JOB_SEEKER`
 
-| Query | Type | Default | Notes |
+| Query | Tipe | Default | Catatan |
 |---|---|---|---|
-| `includeHistory` | boolean | `false` | `true` adds the full status history to each item |
+| `includeHistory` | boolean | `false` | `true` menambahkan history status lengkap ke setiap item |
 
 **Response `200`**
 
@@ -641,20 +651,20 @@ The authenticated seeker's own applications with their current statuses.
 ]
 ```
 
-`job.isActive` is included so the UI can mark a posting that has since been withdrawn,
-without hiding the application — the seeker's own application history stays visible.
+`job.isActive` disertakan agar UI bisa menandai lowongan yang sudah ditarik, tanpa
+menyembunyikan lamarannya — riwayat lamaran milik pencari kerja itu sendiri tetap terlihat.
 
-**Errors:** `401`, `403` (caller is a Company).
+**Error:** `401`, `403` (pemanggil adalah Company).
 
 ---
 
 #### `GET /api/applications/me/:id`
 
-One application belonging to the caller, always with its full history.
+Satu lamaran milik pemanggil, selalu beserta history lengkapnya.
 
-**Auth:** `JOB_SEEKER` only
+**Auth:** hanya `JOB_SEEKER`
 
-**Response `200`** — a `MyApplicationResponseDto` with `history`:
+**Response `200`** — sebuah `MyApplicationResponseDto` dengan `history`:
 
 ```json
 {
@@ -687,29 +697,29 @@ One application belonging to the caller, always with its full history.
 }
 ```
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | `:id` is not a valid UUID |
-| `401` | Not authenticated |
-| `403` | Caller is a Company |
-| `404` | No such application, **or** it belongs to another seeker |
+| `400` | `:id` bukan UUID yang valid |
+| `401` | Belum terautentikasi |
+| `403` | Pemanggil adalah Company |
+| `404` | Lamaran tidak ada, **atau** milik pencari kerja lain |
 
 ---
 
 #### `GET /api/jobs/:jobId/applications`
 
-The candidates who applied to one of the company's own jobs.
-**Implements requirement 7.**
+Para kandidat yang melamar ke salah satu job milik perusahaan.
+**Mengimplementasikan requirement 7.**
 
-**Auth:** `COMPANY` only, and only for a job the company owns
+**Auth:** hanya `COMPANY`, dan hanya untuk job yang dimiliki perusahaan tersebut
 
-| Query | Type | Notes |
+| Query | Tipe | Catatan |
 |---|---|---|
-| `status` | enum | Filter by current status, e.g. `?status=REVIEWING` |
+| `status` | enum | Filter berdasarkan status saat ini, mis. `?status=REVIEWING` |
 
-**Response `200`** — candidates with their full history:
+**Response `200`** — kandidat beserta history lengkapnya:
 
 ```json
 [
@@ -727,33 +737,34 @@ The candidates who applied to one of the company's own jobs.
 ]
 ```
 
-The Candidate's email is exposed here — it is the company's own candidate pool and they need
-to contact them. Note the field is , not :  reserves
-"Candidate" for the Company's perspective, and the distinction is load-bearing (a Job Seeker
-is a Candidate only on jobs they applied to, and a stranger to every other company). Their password hash and refresh tokens live on the same row and are
-never serialised.
+Email kandidat diungkapkan di sini — itu adalah kumpulan kandidat milik perusahaan tersebut dan
+mereka perlu menghubungi orangnya. Perhatikan nama field-nya: `candidate`, bukan `applicant`.
+API menyimpan istilah "Candidate" untuk sudut pandang Company, dan perbedaan ini penting
+(seorang Job Seeker adalah Candidate hanya pada job yang ia lamar, dan orang asing bagi
+perusahaan lain). Hash password dan refresh token mereka berada di baris yang sama dan tidak
+pernah diserialisasi.
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | `:jobId` is not a valid UUID, or unknown `status` value |
-| `401` | Not authenticated |
-| `403` | Caller is a Job Seeker |
-| `404` | No such job, **or** the job belongs to another company |
+| `400` | `:jobId` bukan UUID yang valid, atau nilai `status` tidak dikenal |
+| `401` | Belum terautentikasi |
+| `403` | Pemanggil adalah Job Seeker |
+| `404` | Job tidak ada, **atau** job milik perusahaan lain |
 
 ---
 
 #### `PATCH /api/applications/:id/status`
 
-Changes a candidate's status. **Implements requirements 8 and 9.**
+Mengubah status seorang kandidat. **Mengimplementasikan requirement 8 dan 9.**
 
-**Auth:** `COMPANY` only, for an application on a job the company owns
+**Auth:** hanya `COMPANY`, untuk lamaran pada job yang dimiliki perusahaan tersebut
 
-| Field | Type | Required | Notes |
+| Field | Tipe | Wajib | Catatan |
 |---|---|---|---|
-| `status` | enum | ✅ | Any status except `APPLIED` |
-| `note` | string | ❌ | ≤ 1000 chars, stored on the history row |
+| `status` | enum | ✅ | Status apa pun kecuali `APPLIED` |
+| `note` | string | ❌ | ≤ 1000 karakter, disimpan pada baris history |
 
 ```json
 {
@@ -762,14 +773,14 @@ Changes a candidate's status. **Implements requirements 8 and 9.**
 }
 ```
 
-The status on the application and the new history row are written in **one transaction**
-([ADR-0002](./adr/0002-status-history-authoritative-current-status-denormalized.md)), so the
-denormalised current status can never drift from the history.
+Status pada application dan baris history baru ditulis dalam **satu transaksi**
+([ADR-0002](./adr/0002-status-history-authoritative-current-status-denormalized.md)), sehingga
+status saat ini yang didenormalisasi tidak akan pernah menyimpang dari history-nya.
 
 **Response `200`**
 
-A real change. The response is intentionally minimal — it confirms what moved and from where,
-which is all the Company UI needs to update its row:
+Sebuah perubahan nyata. Responsnya sengaja minimal — hanya menegaskan apa yang berubah dan
+dari mana, yang merupakan semua yang dibutuhkan UI Company untuk memperbarui barisnya:
 
 ```json
 {
@@ -780,14 +791,14 @@ which is all the Company UI needs to update its row:
 }
 ```
 
-The created history row is **not** embedded in this response. To read the timeline after a
-change, re-fetch the application — `GET /api/applications/me/:id` for the applicant, or
-`GET /api/jobs/:jobId/applications` for the Company (whose response includes each candidate's
-`history`).
+Baris history yang dibuat **tidak** disertakan dalam respons ini. Untuk membaca timeline setelah
+perubahan, ambil ulang application-nya — `GET /api/applications/me/:id` untuk pelamar, atau
+`GET /api/jobs/:jobId/applications` untuk Company (yang responsnya memuat `history` tiap
+kandidat).
 
-Setting a status the application is **already in** is a no-op — `200` with `changed: false`,
-`previousStatus` equal to the current status, and **no** history row, so the audit trail never
-contains consecutive duplicates:
+Menetapkan status yang **sudah** dimiliki application adalah no-op — `200` dengan
+`changed: false`, `previousStatus` sama dengan status saat ini, dan **tanpa** baris history,
+sehingga jejak audit tidak pernah memuat duplikat berurutan:
 
 ```json
 {
@@ -798,49 +809,49 @@ contains consecutive duplicates:
 }
 ```
 
-**Errors**
+**Error**
 
-| Code | When |
+| Kode | Kapan |
 |---|---|
-| `400` | `status` is `APPLIED` (the system-assigned initial state), or `status` is missing/unknown |
-| `401` | Not authenticated |
-| `403` | Caller is a Job Seeker |
-| `404` | No such application, **or** it is on another company's job |
+| `400` | `status` bernilai `APPLIED` (status awal pemberian sistem), atau `status` hilang/tidak dikenal |
+| `401` | Belum terautentikasi |
+| `403` | Pemanggil adalah Job Seeker |
+| `404` | Lamaran tidak ada, **atau** berada pada job perusahaan lain |
 
 ---
 
-## 6. Requirement traceability
+## 6. Ketertelusuran requirement
 
-| # | Requirement | Where it is implemented |
+| # | Requirement | Di mana diimplementasikan |
 |---|---|---|
-| 1 | Login as Job Seeker or Company | `POST /api/auth/register`, `POST /api/auth/login` |
-| 2 | Seeker sees jobs (title, company, location, salary, type) | `GET /api/jobs` |
-| 3 | Seeker sees detail and can apply | `GET /api/jobs/:id`, `POST /api/jobs/:jobId/applications` |
-| 4 | Seeker sees applied jobs and statuses | `GET /api/applications/me` |
-| 5 | No duplicate applications | DB unique constraint `(jobId, applicantUserId)` → `409`; see ADR-0003 |
-| 6 | Company creates job postings | `POST /api/jobs`, `PATCH /api/jobs/:id`, `GET /api/jobs/mine` |
-| 7 | Company sees its own candidates | `GET /api/jobs/:jobId/applications` |
-| 8 | Company changes status (5 values) | `PATCH /api/applications/:id/status` |
-| 9 | Every change stored in history | `application_history` table, written transactionally; `GET /api/applications/me/:id` returns it |
-| 10 | Data in PostgreSQL | Prisma schema + migration in `backend/prisma/` |
+| 1 | Login sebagai Job Seeker atau Company | `POST /api/auth/register`, `POST /api/auth/login` |
+| 2 | Pencari kerja melihat job (judul, perusahaan, lokasi, gaji, tipe) | `GET /api/jobs` |
+| 3 | Pencari kerja melihat detail dan bisa melamar | `GET /api/jobs/:id`, `POST /api/jobs/:jobId/applications` |
+| 4 | Pencari kerja melihat job yang dilamar dan statusnya | `GET /api/applications/me` |
+| 5 | Tidak ada lamaran duplikat | Unique constraint DB `(jobId, applicantUserId)` → `409`; lihat ADR-0003 |
+| 6 | Company membuat lowongan job | `POST /api/jobs`, `PATCH /api/jobs/:id`, `GET /api/jobs/mine` |
+| 7 | Company melihat kandidatnya sendiri | `GET /api/jobs/:jobId/applications` |
+| 8 | Company mengubah status (5 nilai) | `PATCH /api/applications/:id/status` |
+| 9 | Setiap perubahan tersimpan di history | Tabel `application_history`, ditulis secara transaksional; `GET /api/applications/me/:id` mengembalikannya |
+| 10 | Data di PostgreSQL | Skema Prisma + migrasi di `backend/prisma/` |
 
-Cross-cutting: **Auth & authorization** (§1, §2) · **API validation** (§4) · **Error
-handling** (§4) · **DB relationships** (§6) · **Responsive UI** (Tailwind breakpoints in
-`frontend/`) · **Maintainable code** (layered modules, ADRs, shared types).
+Lintas aspek: **Auth & otorisasi** (§1, §2) · **Validasi API** (§4) · **Penanganan error**
+(§4) · **Relasi DB** (§6) · **UI responsif** (breakpoint Tailwind di `frontend/`) · **Kode
+yang mudah dipelihara** (modul berlapis, ADR, tipe bersama).
 
 ---
 
-## 7. Quick start with curl
+## 7. Mulai cepat dengan curl
 
-Start the stack first — see the root [`README.md`](../README.md). Assumes the API is on
-`http://localhost:3000` and the seeded demo data is loaded (`npm run seed`).
+Jalankan stack-nya lebih dulu — lihat [`README.md`](../README.md) di root. Diasumsikan API ada
+di `http://localhost:3000` dan data demo hasil seed sudah dimuat (`npm run seed`).
 
 ```bash
 API=http://localhost:3000/api
-JAR=/tmp/indokerja-cookies.txt     # curl's cookie jar stands in for the browser
+JAR=/tmp/indokerja-cookies.txt     # cookie jar curl menggantikan peran browser
 ```
 
-### Log in as a Job Seeker
+### Login sebagai Job Seeker
 
 ```bash
 curl -s -c $JAR -X POST $API/auth/login \
@@ -848,7 +859,7 @@ curl -s -c $JAR -X POST $API/auth/login \
   -d '{"email":"seeker@demo.com","password":"Password123!"}'
 ```
 
-Take `accessToken` from the response and store it:
+Ambil `accessToken` dari respons dan simpan:
 
 ```bash
 ACCESS=$(curl -s -c $JAR -X POST $API/auth/login \
@@ -857,20 +868,20 @@ ACCESS=$(curl -s -c $JAR -X POST $API/auth/login \
   | python -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])')
 ```
 
-### Browse jobs (requirement 2)
+### Menelusuri job (requirement 2)
 
 ```bash
 curl -s $API/jobs?limit=3 -H "Authorization: Bearer $ACCESS"
 ```
 
-### Search and filter
+### Mencari dan memfilter
 
 ```bash
 curl -s "$API/jobs?q=engineer&jobType=FULL_TIME&location=jakarta" \
   -H "Authorization: Bearer $ACCESS"
 ```
 
-### View a job and apply (requirements 3 and 5)
+### Melihat job dan melamar (requirement 3 dan 5)
 
 ```bash
 JOB=$(curl -s "$API/jobs?limit=1" -H "Authorization: Bearer $ACCESS" \
@@ -881,7 +892,7 @@ curl -s -X POST "$API/jobs/$JOB/applications" \
   -d '{"coverLetter":"I would love to work on this."}'
 ```
 
-Apply a second time to see the duplicate rule:
+Melamar untuk kedua kalinya untuk melihat aturan duplikat:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' -X POST "$API/jobs/$JOB/applications" \
@@ -889,32 +900,32 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST "$API/jobs/$JOB/applications" \
 # -> 409
 ```
 
-### My applications with statuses (requirement 4)
+### Lamaran saya beserta statusnya (requirement 4)
 
 ```bash
 curl -s "$API/applications/me?includeHistory=true" -H "Authorization: Bearer $ACCESS"
 ```
 
-### Refresh the access token
+### Refresh access token
 
-The cookie jar supplies the refresh cookie, exactly as a browser would:
+Cookie jar menyediakan cookie refresh, persis seperti yang dilakukan browser:
 
 ```bash
 curl -s -b $JAR -c $JAR -X POST $API/auth/refresh
 ```
 
-Using rotation correctly means the cookie in the jar is replaced on every call. Bypassing
-curl's jar (reusing a raw token twice) is what triggers the reuse-revokes-every-session
-behaviour.
+Menggunakan rotasi dengan benar berarti cookie di dalam jar diganti pada setiap panggilan.
+Melewati jar milik curl (memakai ulang token mentah dua kali) justru memicu perilaku
+"penggunaan ulang mencabut semua sesi".
 
-### Log out
+### Logout
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' -b $JAR -c $JAR -X POST $API/auth/logout
 # -> 204
 ```
 
-### Switch to a Company account (requirements 6–9)
+### Beralih ke akun Company (requirement 6–9)
 
 ```bash
 CACCESS=$(curl -s -c $JAR -X POST $API/auth/login \
@@ -923,7 +934,7 @@ CACCESS=$(curl -s -c $JAR -X POST $API/auth/login \
   | python -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])')
 ```
 
-Create a job posting:
+Membuat lowongan job:
 
 ```bash
 NEWJOB=$(curl -s -X POST $API/jobs \
@@ -938,13 +949,13 @@ NEWJOB=$(curl -s -X POST $API/jobs \
       }' | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
 ```
 
-List your own postings, including inactive ones:
+Menampilkan lowongan sendiri, termasuk yang tidak aktif:
 
 ```bash
 curl -s $API/jobs/mine -H "Authorization: Bearer $CACCESS"
 ```
 
-List candidates for a job (requirement 7) — the seeded backend job has applicants:
+Menampilkan kandidat untuk sebuah job (requirement 7) — job backend hasil seed memiliki pelamar:
 
 ```bash
 curl -s "$API/jobs/$(curl -s $API/jobs/mine -H "Authorization: Bearer $CACCESS" \
@@ -952,7 +963,7 @@ curl -s "$API/jobs/$(curl -s $API/jobs/mine -H "Authorization: Bearer $CACCESS" 
   -H "Authorization: Bearer $CACCESS"
 ```
 
-Change a candidate's status (requirement 8):
+Mengubah status seorang kandidat (requirement 8):
 
 ```bash
 APP=$(curl -s "$API/applications/me" -H "Authorization: Bearer $ACCESS" \
@@ -963,45 +974,46 @@ curl -s -X PATCH "$API/applications/$APP/status" \
   -d '{"status":"SHORTLISTED","note":"Strong portfolio. Scheduling a call."}'
 ```
 
-Confirm the history grew by exactly one (requirement 9):
+Pastikan history bertambah tepat satu (requirement 9):
 
 ```bash
 curl -s "$API/applications/me/$APP" -H "Authorization: Bearer $ACCESS" \
   | python -c 'import sys,json; [print(h["status"], "|", h["note"]) for h in json.load(sys.stdin)["history"]]'
 ```
 
-### See the authorization model
+### Melihat model otorisasi
 
 ```bash
-# Wrong role -> 403: a seeker cannot create a job
+# Role salah -> 403: pencari kerja tidak bisa membuat job
 curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/jobs \
   -H "Authorization: Bearer $ACCESS" -H 'Content-Type: application/json' \
   -d '{"title":"x","description":"x","location":"x","jobType":"FULL_TIME"}'
 # -> 403
 
-# No token -> 401
+# Tanpa token -> 401
 curl -s -o /dev/null -w '%{http_code}\n' $API/jobs
 # -> 401
 
-# Cross-tenant -> 404, not 403 (a job belonging to another company)
+# Lintas tenant -> 404, bukan 403 (job milik perusahaan lain)
 curl -s -o /dev/null -w '%{http_code}\n' \
   "$API/jobs/$(curl -s "$API/jobs?limit=50" -H "Authorization: Bearer $ACCESS" \
     | python -c 'import sys,json; j=json.load(sys.stdin)["data"]; print([x for x in j if x["jobType"]=="FREELANCE"][0]["id"])')/applications" \
   -H "Authorization: Bearer $CACCESS"
-# -> 404 when that job is not company@demo.com's
+# -> 404 ketika job itu bukan milik company@demo.com
 ```
 
-### Inactive jobs are hidden (requirement 6 side effect)
+### Job tidak aktif disembunyikan (efek samping requirement 6)
 
-The seed includes a deliberately inactive posting. It never appears in the public listing:
+Seed memuat satu lowongan yang sengaja dinonaktifkan. Lowongan itu tidak pernah muncul di
+daftar publik:
 
 ```bash
 curl -s "$API/jobs?limit=50" -H "Authorization: Bearer $ACCESS" \
   | python -c 'import sys,json; print([j["title"] for j in json.load(sys.stdin)["data"]]); print("closed jobs listed above?")'
-# "DevOps Engineer (Closed)" is absent
+# "DevOps Engineer (Closed)" tidak ada
 ```
 
-### Undisclosed salary survives as `null`
+### Gaji yang tidak diungkapkan tetap `null`
 
 ```bash
 curl -s "$API/jobs?limit=50" -H "Authorization: Bearer $ACCESS" \
@@ -1014,18 +1026,19 @@ for j in json.load(sys.stdin)["data"]:
 
 ---
 
-## Regenerating the OpenAPI spec
+## Membuat ulang spesifikasi OpenAPI
 
-Swagger is generated from the DTOs at boot, so it cannot drift from the code. To export it:
+Swagger dihasilkan dari DTO saat boot, sehingga tidak mungkin menyimpang dari kodenya. Untuk
+mengekspornya:
 
 ```bash
 curl -s http://localhost:3000/api/docs-json -o openapi.json
 ```
 
-## Automated verification
+## Verifikasi otomatis
 
-`backend/apitest.js` is a 90-assertion end-to-end script that exercises every requirement
-above against a live API and real database:
+`backend/apitest.js` adalah skrip end-to-end dengan 90 assertion yang menguji setiap requirement
+di atas terhadap API yang hidup dan database yang nyata:
 
 ```bash
 cd backend

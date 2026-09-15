@@ -1,50 +1,51 @@
-# ADR Format
+# Format ADR
 
-One file per decision, in `docs/adr/`, named `NNNN-kebab-case-title.md`.
+Satu berkas per keputusan, di `docs/adr/`, dinamai `NNNN-judul-dalam-kebab-case.md`.
 
 ```markdown
-# NNNN — <Title>
+# NNNN — <Judul>
 
 - **Status:** Proposed | Accepted | Superseded by NNNN
 - **Date:** YYYY-MM-DD
 
-## Context
+## Konteks
 
-What situation forced a decision? What constraints were in play? Be concrete: name the
-requirement, the existing design, or the incident that made this urgent. Assume the
-reader has none of your context.
+Situasi apa yang memaksa adanya keputusan? Constraint apa yang sedang berlaku? Bersikap
+konkretlah: sebutkan persyaratannya, desain yang sudah ada, atau insiden yang membuat ini
+mendesak. Anggap pembacanya tidak memiliki konteks apa pun dari Anda.
 
-## Decision
+## Keputusan
 
-What we will do, stated in the active voice: "We will...". One paragraph is usually
-enough. If it needs a list, the decision is probably two decisions.
+Apa yang akan kami lakukan, dinyatakan dalam kalimat aktif: "Kami akan...". Satu paragraf
+biasanya cukup. Jika perlu berupa daftar, kemungkinan itu sebenarnya dua keputusan.
 
-## Alternatives considered
+## Alternatif yang dipertimbangkan
 
-- **<Alternative>** — why it was rejected. "It was simpler" is not a reason; say what
-  it would have cost.
-- **<Alternative>** — why it was rejected.
+- **<Alternatif>** — kenapa ditolak. "Lebih sederhana" bukan alasan; sebutkan apa biayanya.
+- **<Alternatif>** — kenapa ditolak.
 
-## Consequences
+## Konsekuensi
 
-What becomes true as a result. Include the bad parts. An ADR with no downsides listed is
-an ADR that has not been thought through — every real decision costs something.
+Apa yang menjadi kenyataan sebagai akibatnya. Sertakan bagian yang buruk. ADR yang tidak
+mencantumkan sisi negatifnya adalah ADR yang belum dipikirkan matang — setiap keputusan nyata
+memiliki biaya.
 
-## What would change our mind
+## Yang akan mengubah pikiran kami
 
-The concrete evidence or condition that should reopen this. Without this section the ADR
-reads as permanent, which invites people to either obey it blindly or ignore it.
+Bukti atau kondisi konkret yang seharusnya membuka kembali keputusan ini. Tanpa bagian ini,
+ADR terbaca seolah permanen, yang mengundang orang untuk mematuhinya secara buta atau
+mengabaikannya sama sekali.
 ```
 
-## When to write one
+## Kapan menulis satu ADR
 
-All three must hold:
+Ketiganya harus terpenuhi:
 
-1. **Hard to reverse** — changing course later costs real work.
-2. **Surprising without context** — a future reader will ask "why on earth is it like
-   this?"
-3. **The result of a real trade-off** — genuine alternatives existed and one was picked
-   for stated reasons.
+1. **Sulit dibalik** — mengubah arah nanti memakan usaha nyata.
+2. **Mengejutkan tanpa konteks** — pembaca di masa depan akan bertanya "kenapa ini bisa
+   begini?"
+3. **Hasil dari trade-off nyata** — ada alternatif sungguhan dan salah satunya dipilih
+   dengan alasan yang dinyatakan.
 
-Missing any one, skip it. An ADR is a record of a decision that someone will otherwise
-undo by accident, not a log of everything that was built.
+Jika salah satu tidak terpenuhi, lewati. ADR adalah catatan atas keputusan yang tanpanya
+seseorang akan membatalkannya secara tidak sengaja, bukan log atas semua yang pernah dibuat.

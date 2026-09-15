@@ -1,67 +1,71 @@
-# 0001 — Single User table with a Role discriminator
+# 0001 — Satu tabel User dengan diskriminator Role
 
 - **Status:** Accepted
 - **Date:** 2026-09-15
 
-## Context
+## Konteks
 
-The system has two kinds of authenticated actor: Job Seekers and Companies. They
-authenticate identically (email + password, same token issuance, same session
-lifecycle) but diverge sharply in what they may do — a Job Seeker applies to Jobs, a
-Company creates them and manages the resulting Applications.
+Sistem ini punya dua jenis aktor terautentikasi: Pencari Kerja dan Perusahaan. Keduanya
+melakukan autentikasi dengan cara yang identik (email + kata sandi, penerbitan token yang
+sama, siklus hidup sesi yang sama) tetapi sangat berbeda dalam hal yang boleh mereka lakukan —
+Pencari Kerja melamar Job, Perusahaan membuat Job dan mengelola Application yang masuk.
 
-The obvious modeling question is whether these are one table with a discriminator or two
-tables with separate credentials. Both are common in production systems, and the choice
-is expensive to reverse because it determines the shape of every foreign key, every auth
-guard, and every JWT payload downstream.
+Pertanyaan pemodelan yang jelas adalah apakah keduanya sebaiknya menjadi satu tabel dengan
+diskriminator, atau dua tabel dengan kredensial terpisah. Keduanya umum di sistem produksi,
+dan pilihan ini mahal untuk dibalik karena menentukan bentuk setiap foreign key, setiap guard
+autentikasi, dan setiap payload JWT di hilirnya.
 
-The brief additionally asks for "database relationship yang baik" as an explicit grading
-criterion, so the answer has to be defensible on its merits, not just convenient.
+Brief juga meminta "database relationship yang baik" sebagai kriteria penilaian eksplisit,
+jadi jawabannya harus bisa dipertahankan berdasarkan substansinya, bukan sekadar karena
+praktis.
 
-## Decision
+## Keputusan
 
-We will model both actors as a single `User` table carrying a `role` enum
-(`JOB_SEEKER` | `COMPANY`), with company-specific descriptive fields split into a
-one-to-one `CompanyProfile` relation that exists only for Users whose role is `COMPANY`.
+Kami akan memodelkan kedua aktor sebagai satu tabel `User` yang membawa enum `role`
+(`JOB_SEEKER` | `COMPANY`), dengan field deskriptif khusus perusahaan dipisahkan ke relasi
+satu-ke-satu `CompanyProfile` yang hanya ada untuk User yang role-nya `COMPANY`.
 
-`Job.companyUserId` and `Application.applicantUserId` both reference `User.id` directly.
+`Job.companyUserId` dan `Application.applicantUserId` keduanya merujuk langsung ke `User.id`.
 
-## Alternatives considered
+## Alternatif yang dipertimbangkan
 
-- **Two tables: `JobSeeker` and `Company`, each with credentials.** The strongest
-  argument for this is that it makes the domain boundary explicit and prevents a
-  company row from carrying nullable seeker fields (or vice versa). We rejected it
-  because it duplicates password hashing, token issuance, refresh-token rotation and
-  login throttling across two code paths that must stay behaviourally identical
-  forever. It also forces every auth guard to answer "which table do I look in?" and
-  makes a polymorphic `subjectId` on `RefreshToken` necessary — a foreign key that
-  cannot be enforced by the database. The nullable-columns objection is answered by
-  moving company-only fields into `CompanyProfile`, which is the actual fix and leaves
-  `User` with very few optional columns.
+- **Dua tabel: `JobSeeker` dan `Company`, masing-masing dengan kredensialnya sendiri.**
+  Argumen terkuat untuk ini adalah bahwa ia membuat batas domain menjadi eksplisit dan
+  mencegah baris perusahaan membawa field pencari kerja yang nullable (atau sebaliknya).
+  Kami menolaknya karena ia menduplikasi hashing kata sandi, penerbitan token, rotasi refresh
+  token, dan pembatasan login ke dalam dua jalur kode yang harus tetap identik perilakunya
+  selamanya. Ia juga memaksa setiap guard autentikasi menjawab "tabel mana yang harus saya
+  lihat?" dan membuat `subjectId` polimorfik pada `RefreshToken` menjadi keharusan — sebuah
+  foreign key yang tidak bisa ditegakkan oleh database. Keberatan soal kolom nullable
+  terjawab dengan memindahkan field khusus perusahaan ke `CompanyProfile`, dan itulah
+  perbaikan yang sebenarnya; hasilnya `User` hanya menyisakan sangat sedikit kolom opsional.
 
-- **Single `User` table, all profile fields inline, no `CompanyProfile`.** Simplest, but
-  it puts company description, website and logo columns on every job-seeker row. Since
-  we already needed the relation for the descriptive fields and it costs one join that
-  is only ever performed when displaying a company, the split is nearly free.
+- **Satu tabel `User`, semua field profil inline, tanpa `CompanyProfile`.** Paling sederhana,
+  tetapi ini menempatkan kolom deskripsi perusahaan, situs web, dan logo pada setiap baris
+  pencari kerja. Karena kami sudah membutuhkan relasi itu untuk field deskriptifnya dan
+  biayanya hanya satu join yang hanya dilakukan saat menampilkan perusahaan, pemisahan ini
+  nyaris gratis.
 
-## Consequences
+## Konsekuensi
 
-- Authentication is implemented once. There is no divergence risk between a "seeker
-  login" and a "company login" because there is only one login.
-- A `Role` change is a single-column update, and we have decided role is immutable after
-  registration (see `CONTEXT.md`). If that policy ever relaxed, the blast radius is
-  large: an existing Company's Jobs would remain owned by an account that is now a Job
-  Seeker, which the `JobSeekerGuard` and `CompanyGuard` would then disagree about.
-- `CompanyProfile` is optional. A `COMPANY` user without a profile is possible in the
-  database, so the display layer must handle a null profile rather than assuming it
-  exists. Registration creates one atomically to avoid this in practice.
-- `Role` is a database enum. Adding a third actor (e.g. `ADMIN`) is a migration, not a
-  config change.
+- Autentikasi diimplementasikan sekali. Tidak ada risiko perbedaan perilaku antara "login
+  pencari kerja" dan "login perusahaan" karena hanya ada satu login.
+- Perubahan `Role` adalah pembaruan satu kolom, dan kami sudah menetapkan bahwa role bersifat
+  tetap setelah registrasi (lihat `CONTEXT.md`). Jika kebijakan itu pernah dilonggarkan,
+  dampaknya besar: Job milik sebuah Perusahaan yang sudah ada akan tetap dimiliki oleh akun
+  yang kini menjadi Pencari Kerja, dan `JobSeekerGuard` serta `CompanyGuard` akan saling
+  bertentangan soal itu.
+- `CompanyProfile` bersifat opsional. User `COMPANY` tanpa profil mungkin ada di database,
+  sehingga lapisan tampilan harus menangani profil bernilai null alih-alih menganggapnya
+  selalu ada. Registrasi membuatnya secara atomik untuk mencegah hal ini dalam praktik.
+- `Role` adalah enum database. Menambahkan aktor ketiga (misalnya `ADMIN`) adalah sebuah
+  migrasi, bukan perubahan konfigurasi.
 
-## What would change our mind
+## Yang akan mengubah pikiran kami
 
-If Companies and Job Seekers needed genuinely different authentication — for example
-companies required SSO/domain verification to log in, or seekers used phone-OTP while
-companies used passwords — then the "single auth path" justification collapses entirely
-and two tables become correct. Likewise if company-only fields grew to outnumber shared
-fields substantially, the discriminator would start costing more than it saves.
+Jika Perusahaan dan Pencari Kerja membutuhkan autentikasi yang benar-benar berbeda — misalnya
+perusahaan diwajibkan memakai SSO/verifikasi domain untuk masuk, atau pencari kerja memakai
+OTP telepon sementara perusahaan memakai kata sandi — maka justifikasi "satu jalur
+autentikasi" akan runtuh sepenuhnya dan dua tabel menjadi pilihan yang benar. Begitu pula jika
+field khusus perusahaan tumbuh sampai jauh melebihi field bersama, diskriminator ini akan
+mulai memakan lebih banyak daripada yang ia hemat.

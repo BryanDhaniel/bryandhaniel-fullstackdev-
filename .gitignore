@@ -31,3 +31,14 @@ coverage/
 .backup/
 *.dump
 *.sql.gz
+
+# --- Catatan lokal, tidak untuk di-upload ke GitHub -------------------------
+# Folder kerja asisten (memori sesi, skill, konfigurasi lokal)
+.workbuddy-ai/
+
+# Panduan start lokal untuk mesin ini — berisi path absolut & nama service
+# spesifik mesin, tidak relevan untuk reviewer atau kontributor lain
+START-HERE.md
+
+# Catatan migrasi & backup lokal yang menyertai START-HERE.md
+*.local.md

@@ -1,78 +1,80 @@
-# 0002 — Status history is authoritative, current status is a denormalized read model
+# 0002 — Riwayat status bersifat otoritatif, status terkini adalah model baca yang didenormalisasi
 
 - **Status:** Accepted
 - **Date:** 2026-09-15
 
-## Context
+## Konteks
 
-Requirement 9 states that every status change must be recorded in an application
-history. Requirement 4 ("see my applied jobs and their status") and requirement 7
-("company sees candidates for its job") both require reading the *current* status of an
-Application, and both are among the hottest queries in the application — every list view
-hits one of them.
+Persyaratan nomor 9 menyatakan bahwa setiap perubahan status harus tercatat dalam riwayat
+lamaran. Persyaratan nomor 4 ("melihat lamaran saya dan statusnya") dan persyaratan nomor 7
+("perusahaan melihat kandidat untuk lowongannya") keduanya membutuhkan pembacaan status
+*terkini* sebuah Application, dan keduanya termasuk kueri terpanas dalam aplikasi ini — setiap
+tampilan daftar menyentuh salah satunya.
 
-This creates a classic tension. History is append-only and correct by construction, but
-deriving the current status from it means a correlated subquery or a
-`DISTINCT ON (application_id) ... ORDER BY created_at DESC` join on every row of every
-list. Storing the current status on the Application row is fast to read but introduces a
-second source of truth that can drift from the history.
+Ini menciptakan ketegangan klasik. Riwayat bersifat append-only dan benar secara
+konstruksi, tetapi menurunkan status terkini darinya berarti subkueri berkorelasi atau join
+`DISTINCT ON (application_id) ... ORDER BY created_at DESC` pada setiap baris di setiap
+daftar. Menyimpan status terkini di baris Application cepat dibaca tetapi memunculkan sumber
+kebenaran kedua yang bisa menyimpang dari riwayatnya.
 
-An application can transition many times (Applied → Reviewing → Rejected → Reviewing →
-Shortlisted), so "the history" is not merely a creation record.
+Sebuah application bisa bertransisi berkali-kali (Applied → Reviewing → Rejected → Reviewing
+→ Shortlisted), jadi "riwayat" bukan sekadar catatan pembuatan.
 
-## Decision
+## Keputusan
 
-We will store both: an `Application.status` column holding the current status, and an
-append-only `ApplicationHistory` table holding every status the application has held.
+Kami akan menyimpan keduanya: kolom `Application.status` yang menampung status terkini, dan
+tabel `ApplicationHistory` yang bersifat append-only yang menampung setiap status yang pernah
+dimiliki application tersebut.
 
-Both are written **inside a single database transaction** on every status change, so
-they cannot diverge on a committed write. The history entry for the initial `Applied`
-state is written by the same transaction that creates the Application, not deferred to
-the first change.
+Keduanya ditulis **di dalam satu transaksi database tunggal** pada setiap perubahan status,
+sehingga keduanya tidak mungkin menyimpang pada penulisan yang sudah ter-commit. Entri riwayat
+untuk keadaan `Applied` awal ditulis oleh transaksi yang sama yang membuat Application
+tersebut, bukan ditunda sampai perubahan pertama.
 
-If the two ever disagree on an existing row, `ApplicationHistory` is by definition
-correct and `Application.status` is corrupt; it is repaired from the history, never the
-other way around.
+Jika keduanya sampai tidak sepakat pada baris yang sudah ada, `ApplicationHistory` secara
+definisi adalah yang benar dan `Application.status` yang rusak; ia diperbaiki dari riwayat,
+tidak pernah sebaliknya.
 
-## Alternatives considered
+## Alternatif yang dipertimbangkan
 
-- **Derive current status from history only.** This is the purist position and it is
-  genuinely tempting — one source of truth means drift is impossible. We rejected it
-  because the two most frequent queries in the system would both become window-function
-  joins over a table that grows without bound (every status change adds a row, forever).
-  For an assessment-scope application the absolute numbers are small, but the query
-  shape is the kind a reviewer notices, and "the list endpoint aggregates the audit
-  log" is a design that does not survive contact with real data volume.
+- **Menurunkan status terkini hanya dari riwayat.** Ini posisi paling murni dan memang
+  menggoda — satu sumber kebenaran berarti penyimpangan menjadi mustahil. Kami menolaknya
+  karena dua kueri paling sering dalam sistem ini akan sama-sama berubah menjadi join
+  window-function pada tabel yang tumbuh tanpa batas (setiap perubahan status menambah satu
+  baris, selamanya). Untuk aplikasi berskala penilaian, angka absolutnya kecil, tetapi bentuk
+  kuerinya adalah jenis yang diperhatikan penilai, dan "endpoint daftar mengagregasi log
+  audit" adalah desain yang tidak bertahan saat bertemu volume data nyata.
 
-- **Store current status only, log changes to the application logger.** Rejected: the
-  requirement explicitly says history must be *stored*, and logs are not queryable
-  domain data. A company wants to see its own history through the API, not by reading
-  server logs.
+- **Simpan status terkini saja, catat perubahannya ke logger aplikasi.** Ditolak:
+  persyaratannya secara eksplisit menyebut riwayat harus *disimpan*, dan log bukan data
+  domain yang bisa dikueri. Perusahaan ingin melihat riwayatnya sendiri lewat API, bukan
+  dengan membaca log server.
 
-- **Status changes as events with an event-sourced Application.** Rejected as
-  disproportionate. Full event sourcing would mean replaying events to build every read
-  model, which is a large amount of machinery for a status field with five values. The
-  denormalized-column approach captures the audit benefit without the machinery.
+- **Perubahan status sebagai event dengan Application yang event-sourced.** Ditolak karena
+  tidak proporsional. Event sourcing penuh berarti memutar ulang event untuk membangun setiap
+  model baca, dan itu mesin yang besar hanya untuk sebuah field status dengan lima nilai.
+  Pendekatan kolom terdenormalisasi menangkap manfaat auditnya tanpa mesin tersebut.
 
-## Consequences
+## Konsekuensi
 
-- Every status change is a transaction, not a bare `update`. This is non-negotiable and
-  must not be optimized away — the two writes are one unit of work.
-- `Application.status` is technically redundant data. A future developer may be tempted
-  to "clean this up" by dropping the column and joining the history. The ADR exists to
-  stop that.
-- Writes are serialized per application in practice. Two concurrent status changes could
-  interleave their history entries; since history is ordered by `created_at` and the
-  last writer wins on `status`, the result stays consistent, but the ordering of two
-  same-instant entries is not guaranteed. Not a problem at this scale; noted for honesty.
-- We deliberately do **not** enforce legal transitions between statuses (see
-  `CONTEXT.md`), so history ordering carries no state-machine meaning — it is a record
-  of what happened, not a validated sequence.
+- Setiap perubahan status adalah transaksi, bukan `update` biasa. Ini tidak bisa ditawar dan
+  tidak boleh dioptimasi hilang — kedua penulisan itu adalah satu unit pekerjaan.
+- `Application.status` secara teknis adalah data yang redundan. Pengembang di masa depan
+  mungkin tergoda untuk "merapikan ini" dengan menghapus kolomnya dan join ke riwayat. ADR ini
+  ada untuk menghentikan itu.
+- Penulisan secara praktik menjadi berurutan per application. Dua perubahan status yang
+  bersamaan bisa saling menyisipkan entri riwayatnya; karena riwayat diurutkan berdasarkan
+  `created_at` dan penulis terakhir yang menang pada kolom `status`, hasilnya tetap konsisten,
+  tetapi urutan dua entri pada saat yang sama persis tidak dijamin. Bukan masalah pada skala
+  ini; dicatat demi kejujuran.
+- Kami sengaja **tidak** menegakkan transisi yang sah antar status (lihat `CONTEXT.md`),
+  sehingga urutan riwayat tidak mengandung makna state machine — ia adalah catatan tentang apa
+  yang terjadi, bukan urutan yang tervalidasi.
 
-## What would change our mind
+## Yang akan mengubah pikiran kami
 
-If a genuine state machine were introduced (a decision we explicitly rejected), the
-history would need transition validation and this ADR would need revisiting. Separately,
-if Application rows ever needed to be listed at a volume where even the denormalized
-column was insufficient, a materialized view would be the next step — but that is a
-performance change, not a change to this decision.
+Jika suatu saat state machine sungguhan diperkenalkan (keputusan yang secara eksplisit kami
+tolak), riwayatnya akan memerlukan validasi transisi dan ADR ini perlu ditinjau ulang. Secara
+terpisah, jika baris Application suatu saat perlu didaftar pada volume di mana bahkan kolom
+terdenormalisasi pun tidak cukup, materialized view adalah langkah berikutnya — tetapi itu
+perubahan performa, bukan perubahan atas keputusan ini.

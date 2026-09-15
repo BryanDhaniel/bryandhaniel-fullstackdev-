@@ -1,92 +1,101 @@
-# 0005 — `authorization` guards mutations, `role` guards reads
+# 0005 — Guard `authorization` untuk mutasi, guard `role` untuk pembacaan
 
 - **Status:** Accepted
 - **Date:** 2026-09-15
 
-## Context
+## Konteks
 
-Requirements 6 and 7 introduce an obvious authorization boundary: a Company may create
-Jobs, and may see the candidates who applied to *its own* Jobs. A Company must not see
-another company's candidates.
+Persyaratan nomor 6 dan 7 memunculkan batas otorisasi yang jelas: sebuah Perusahaan boleh
+membuat Job, dan boleh melihat kandidat yang melamar ke Job **miliknya sendiri**. Perusahaan
+tidak boleh melihat kandidat perusahaan lain.
 
-The tempting simplification, and the one most submissions adopt, is to authorize by role
-alone: "only a Company may call `GET /jobs/:id/applications`". This is necessary but not
-sufficient. Requirement 7 says "lowongan **miliknya**" — *its own* postings. Role alone
-would let Company A read Company B's candidate list simply by knowing a job ID, which is
-a real IDOR vulnerability and a plainly wrong implementation of the requirement.
+Penyederhanaan yang menggoda, dan yang paling banyak diadopsi pengumpulan lain, adalah
+mengotorisasi berdasarkan peran saja: "hanya Perusahaan yang boleh memanggil
+`GET /jobs/:id/applications`". Ini perlu tetapi tidak cukup. Persyaratan nomor 7 menyebut
+"lowongan **miliknya**" — postingan miliknya sendiri. Peran saja akan membuat Perusahaan A
+bisa membaca daftar kandidat Perusahaan B hanya dengan mengetahui ID lowongannya, yang
+merupakan kerentanan IDOR nyata dan implementasi persyaratan yang jelas salah.
 
-The brief also lists "Authorization" and "Database relationship yang baik" as focus
-areas, so the ownership relationship is worth making explicit in the schema rather than
-checking ad hoc in each handler.
+Brief juga mencantumkan "Authorization" dan "Database relationship yang baik" sebagai area
+fokus, jadi relasi kepemilikan ini layak dibuat eksplisit di skema alih-alih diperiksa
+ad-hoc di setiap handler.
 
-The design question this surfaces is what "ownership" means *for the applicant side*. A
-Job Seeker is not an owner of anything except their own Applications. There is no
-resource-level ownership to check — the applicant's identity *is* the scope of the query.
+Pertanyaan desain yang muncul dari sini adalah apa arti "kepemilikan" *untuk sisi pelamar*.
+Seorang Pencari Kerja tidak memiliki apa pun kecuali Application miliknya sendiri. Tidak ada
+kepemilikan di level sumber daya yang perlu diperiksa — identitas pelamar *adalah* cakupan
+kuerinya.
 
-## Decision
+## Keputusan
 
-We will distinguish two kinds of authorization and implement them differently.
+Kami akan membedakan dua jenis otorisasi dan mengimplementasikannya secara berbeda.
 
-**Authorization — resource-level, on mutations.** Any operation that changes existing
-state owned by someone (creating a Job, listing a Job's candidates, changing an
-Application's status) is checked against a resource relationship, with ownership derived
-from the database rather than from a value supplied by the client. The server resolves
-"does this Company own this Job?" from `Job.companyUserId`, and never trusts a
-`companyId` in a request body. Where a resource is not owned by the caller, we return
-**`404 Not Found`, not `403 Forbidden`**, so the endpoint does not confirm the existence
-of another party's resource.
+**Authorization — di level sumber daya, untuk mutasi.** Operasi apa pun yang mengubah keadaan
+yang sudah ada milik seseorang (membuat Job, mendaftar kandidat sebuah Job, mengubah status
+sebuah Application) diperiksa terhadap relasi sumber daya, dengan kepemilikan diturunkan dari
+database alih-alih dari nilai yang dipasok klien. Server menentukan "apakah Perusahaan ini
+memiliki Job ini?" dari `Job.companyUserId`, dan tidak pernah memercayai `companyId` di body
+permintaan. Ketika sebuah sumber daya tidak dimiliki pemanggil, kami mengembalikan
+**`404 Not Found`, bukan `403 Forbidden`**, supaya endpoint tersebut tidak mengonfirmasi
+keberadaan sumber daya milik pihak lain.
 
-**Role — actor-level, on reads and on creation.** Operations whose scope is inherently
-"the caller's own data" (listing available Jobs as a Job Seeker, listing one's own
-Applications, creating a Job as a Company) are guarded by role alone, because the query
-itself already scopes to the authenticated user. A Job Seeker listing their Applications
-cannot leak anything: the query is filtered by `applicantUserId = req.user.id`.
+**Role — di level aktor, untuk pembacaan dan pembuatan.** Operasi yang cakupannya memang
+"data milik pemanggil sendiri" (mendaftar Job yang tersedia sebagai Pencari Kerja, mendaftar
+Application milik sendiri, membuat Job sebagai Perusahaan) dijaga oleh peran saja, karena
+kuerinya sendiri sudah dibatasi ke pengguna yang terautentikasi. Pencari Kerja yang mendaftar
+Application miliknya tidak bisa membocorkan apa pun: kuerinya difilter dengan
+`applicantUserId = req.user.id`.
 
-Concretely: `JobSeekerGuard` and `CompanyGuard` are applied per-route alongside
-`JwtAuthGuard`, and handler logic enforces ownership where a resource is addressed by ID.
+Secara konkret: `JobSeekerGuard` dan `CompanyGuard` diterapkan per-rute bersama
+`JwtAuthGuard`, dan logika handler menegakkan kepemilikan di mana sebuah sumber daya diacu
+lewat ID.
 
-## Alternatives considered
+## Alternatif yang dipertimbangkan
 
-- **Role-only authorization everywhere.** Simplest and satisfies the letter of
-  requirement 6. Rejected on requirement 7, which is explicitly about ownership, and
-  because role-only checks on `GET /jobs/:jobId/applications` is a textbook IDOR that a
-  reviewer scanning for security issues will find.
+- **Otorisasi berbasis peran saja di mana-mana.** Paling sederhana dan memenuhi huruf
+  persyaratan nomor 6. Ditolak karena persyaratan nomor 7, yang secara eksplisit tentang
+  kepemilikan, dan karena pengecekan berbasis peran saja pada
+  `GET /jobs/:jobId/applications` adalah IDOR buku teks yang akan ditemukan penilai yang
+  memindai isu keamanan.
 
-- **`403` for cross-tenant access.** Arguably more honest and easier to debug. Rejected
-  because it confirms that the requested resource exists — a Company can enumerate job
-  IDs and learn which ones are real. `404` leaks less.
+- **`403` untuk akses lintas tenant.** Bisa dibilang lebih jujur dan lebih mudah di-debug.
+  Ditolak karena ia mengonfirmasi bahwa sumber daya yang diminta itu ada — sebuah Perusahaan
+  bisa menyebutkan ID lowongan satu per satu dan mengetahui mana yang nyata. `404`
+  membocorkan lebih sedikit.
 
-- **A generic CASL / policy-based authorization layer.** Would be the right call in a
-  larger system with many resources and fine-grained rules. Rejected as disproportionate
-  here: there are two roles and one ownership relationship. A permission framework would
-  add a dependency and an indirection for no additional correctness at this size.
+- **Lapisan otorisasi generik berbasis kebijakan seperti CASL.** Akan menjadi pilihan yang
+  tepat di sistem yang lebih besar dengan banyak sumber daya dan aturan yang terperinci.
+  Ditolak karena tidak proporsional di sini: hanya ada dua peran dan satu relasi kepemilikan.
+  Framework izin akan menambah dependensi dan satu lapisan perantara tanpa tambahan
+  kebenaran pada ukuran ini.
 
-- **Enforcing ownership in the database layer via Postgres row-level security.** Strong,
-  and genuinely appealing as a defense-in-depth measure. Rejected because Prisma does not
-  manage RLS policies, so the policies would live outside the migration history and be
-  invisible to anyone reading the schema — worse for a reviewer trying to understand the
-  authorization model than explicit guard + service logic.
+- **Menegakkan kepemilikan di lapisan database lewat row-level security PostgreSQL.** Kuat,
+  dan sungguh menarik sebagai langkah pertahanan berlapis. Ditolak karena Prisma tidak
+  mengelola kebijakan RLS, sehingga kebijakannya akan berada di luar riwayat migrasi dan
+  tidak terlihat oleh siapa pun yang membaca skemanya — lebih buruk bagi penilai yang
+  berusaha memahami model otorisasinya dibandingkan guard eksplisit plus logika service.
 
-## Consequences
+## Konsekuensi
 
-- The same requirement is enforced in two mechanisms. A developer adding a new endpoint
-  must decide which applies, and getting it wrong is possible. The mitigation is that the
-  ownership check lives in the service layer next to the query, so it is hard to add a
-  "list candidates" method without noticing that its sibling checks ownership.
-- Ownership is derived from `job.companyUserId`, which is set at creation from the
-  authenticated user and never accepted from the client. There is no endpoint to
-  transfer ownership.
-- `404` for cross-tenant access means a legitimate bug in a caller's own data (e.g. a
-  stale job ID) reports as "not found" rather than "forbidden", which is slightly harder
-  to debug. Accepted in exchange for not leaking existence.
-- Every mutation path has an e2e test asserting the cross-tenant case is refused. Without
-  those tests the distinction is aspirational rather than verified.
+- Persyaratan yang sama ditegakkan oleh dua mekanisme. Pengembang yang menambahkan endpoint
+  baru harus memutuskan mana yang berlaku, dan bisa saja salah pilih. Mitigasinya adalah
+  pengecekan kepemilikan berada di lapisan service tepat di sebelah kuerinya, sehingga sulit
+  menambahkan metode "daftar kandidat" tanpa menyadari bahwa metode saudaranya memeriksa
+  kepemilikan.
+- Kepemilikan diturunkan dari `job.companyUserId`, yang ditetapkan saat pembuatan dari
+  pengguna yang terautentikasi dan tidak pernah diterima dari klien. Tidak ada endpoint untuk
+  mengalihkan kepemilikan.
+- `404` untuk akses lintas tenant berarti bug yang sah pada data milik pemanggil sendiri
+  (misalnya ID lowongan yang sudah kedaluwarsa) akan dilaporkan sebagai "not found" alih-alih
+  "forbidden", yang sedikit lebih sulit di-debug. Diterima dengan menukar kebocoran keberadaan
+  sumber daya.
+- Setiap jalur mutasi punya tes e2e yang memastikan kasus lintas tenant ditolak. Tanpa tes
+  tersebut, pembedaan ini hanya aspirasi dan bukan sesuatu yang terverifikasi.
 
-## What would change our mind
+## Yang akan mengubah pikiran kami
 
-If a third role were introduced (e.g. an `ADMIN` who may read across tenants, or a
-recruiter role acting on behalf of a company), the two-guard model would need replacing
-with a policy layer — the ownership predicate would stop being expressible as "the
-Company that created it". Similarly, if the number of ownership relationships grew beyond
-this one, hand-written service checks would become a maintenance hazard and CASL or RLS
-would start to pay for itself.
+Jika suatu saat peran ketiga diperkenalkan (misalnya `ADMIN` yang boleh membaca lintas tenant,
+atau peran rekruter yang bertindak atas nama perusahaan), model dua guard ini perlu diganti
+dengan lapisan kebijakan — predikat kepemilikannya tidak lagi bisa dinyatakan sebagai
+"Perusahaan yang membuatnya". Begitu pula, jika jumlah relasi kepemilikan tumbuh melebihi
+yang satu ini, pengecekan service yang ditulis tangan akan menjadi bahaya pemeliharaan dan
+CASL atau RLS akan mulai sepadan dengan biayanya.

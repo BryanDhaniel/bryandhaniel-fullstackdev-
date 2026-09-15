@@ -1,155 +1,162 @@
-# IndoKerja.id — Job Application Management
+# IndoKerja.id — Manajemen Lamaran Kerja
 
-A simplified implementation of the IndoKerja.id job application flow: job seekers browse and
-apply to jobs, companies post jobs and manage the resulting candidates through a status
-workflow, and every status change is recorded in an append-only history.
+Implementasi sederhana dari alur lamaran kerja IndoKerja.id: pencari kerja menelusuri dan
+melamar pekerjaan, perusahaan memasang lowongan dan mengelola kandidat yang masuk melalui
+alur status, dan setiap perubahan status tercatat dalam riwayat yang bersifat *append-only*.
 
 | | |
 |---|---|
 | **Frontend** | React 18 + TypeScript + Vite 6, TanStack Query, Tailwind CSS |
 | **Backend** | Node.js + TypeScript + NestJS 10 |
 | **Database** | PostgreSQL 16 via Prisma 5 |
-| **API** | REST, documented with Swagger/OpenAPI |
+| **API** | REST, didokumentasikan dengan Swagger/OpenAPI |
 
 ---
 
-## Table of contents
+## Daftar isi
 
-1. [What it does](#1-what-it-does)
-2. [Quick start](#2-quick-start)
-3. [Demo accounts](#3-demo-accounts)
-4. [Project structure](#4-project-structure)
-5. [Running without Docker](#5-running-without-docker)
-   - [5.1 Native PostgreSQL 18](#51-native-postgresql-18)
-6. [Environment variables](#6-environment-variables)
-7. [Database schema](#7-database-schema)
-8. [Verifying the build](#8-verifying-the-build)
-9. [Design decisions](#9-design-decisions)
-10. [Troubleshooting](#10-troubleshooting)
-
----
-
-## 1. What it does
-
-### As a Job Seeker
-
-- Register or log in.
-- Browse active jobs — title, company, location, salary, job type — with search and filtering
-  by location and job type, and pagination.
-- Open a job to read the full description and apply, optionally with a cover letter.
-- **Apply at most once per job.** The UI disables the button and the database refuses a second
-  attempt.
-- Track every application and its current status, and expand any of them to see the full
-  status timeline with the notes the company left.
-
-### As a Company
-
-- Register or log in (registration creates the company profile in the same transaction).
-- Create job postings with salary ranges, or omit the salary entirely for "Negotiable".
-- Manage your own postings: edit them, or deactivate one to withdraw it from the listing.
-  Deactivating never disturbs applications already received.
-- See the candidates who applied to each of your jobs, with their cover letters and histories.
-- Move a candidate through `Reviewing` → `Shortlisted` → `Rejected` / `Accepted`. **Any status
-  may follow any other**, so a rejected candidate can be reopened after an interview.
-- Every change is written to the application history with a timestamp, the acting user, and an
-  optional note.
-
-### What it deliberately does not do
-
-This is a scoped assessment implementation. There is no email delivery, no file upload or CV
-storage, no admin role, no password reset, and no pagination on application lists. The brief
-asked for functional correctness, clean code, sound database design, a solid API, and security
-— so the effort went there instead of into breadth.
+1. [Fitur](#1-fitur)
+2. [Menjalankan cepat](#2-menjalankan-cepat)
+3. [Akun demo](#3-akun-demo)
+4. [Struktur proyek](#4-struktur-proyek)
+5. [Menjalankan tanpa Docker](#5-menjalankan-tanpa-docker)
+   - [5.1 PostgreSQL 18 native](#51-postgresql-18-native)
+6. [Variabel environment](#6-variabel-environment)
+7. [Skema database](#7-skema-database)
+8. [Memverifikasi hasil build](#8-memverifikasi-hasil-build)
+9. [Keputusan desain](#9-keputusan-desain)
+10. [Pemecahan masalah](#10-pemecahan-masalah)
 
 ---
 
-## 2. Quick start
+## 1. Fitur
 
-### Prerequisites
+### Sebagai Pencari Kerja
 
-- **Node.js 20+** (`node --version`)
-- **PostgreSQL 16 or newer** — either the bundled Docker Compose stack, or a native install
-  ([§5](#5-running-without-docker) covers the native path)
+- Mendaftar atau masuk.
+- Menelusuri lowongan aktif — judul, perusahaan, lokasi, gaji, jenis pekerjaan — dengan
+  pencarian dan filter berdasarkan lokasi dan jenis pekerjaan, serta paginasi.
+- Membuka detail lowongan untuk membaca deskripsi lengkap dan melamar, opsional dengan
+  surat lamaran.
+- **Melamar maksimal satu kali per lowongan.** Tombol dinonaktifkan di UI dan database
+  menolak percobaan kedua.
+- Melacak setiap lamaran beserta status terkini, dan membuka salah satunya untuk melihat
+  seluruh riwayat status lengkap dengan catatan dari perusahaan.
 
-### Steps
+### Sebagai Perusahaan
+
+- Mendaftar atau masuk (pendaftaran sekaligus membuat profil perusahaan dalam transaksi yang
+  sama).
+- Membuat lowongan dengan rentang gaji, atau mengosongkan gaji untuk ditampilkan sebagai
+  "Negotiable".
+- Mengelola lowongan sendiri: menyuntingnya, atau menonaktifkannya untuk menariknya dari
+  daftar. Menonaktifkan tidak pernah mengganggu lamaran yang sudah masuk.
+- Melihat kandidat yang melamar ke setiap lowongan miliknya, beserta surat lamaran dan
+  riwayatnya.
+- Memindahkan kandidat melalui `Reviewing` → `Shortlisted` → `Rejected` / `Accepted`.
+  **Status apa pun boleh diikuti status apa pun**, sehingga kandidat yang ditolak bisa dibuka
+  kembali setelah wawancara.
+- Setiap perubahan ditulis ke riwayat lamaran dengan stempel waktu, pengguna yang melakukan
+  perubahan, dan catatan opsional.
+
+### Yang sengaja tidak dilakukan
+
+Ini adalah implementasi untuk keperluan penilaian dengan ruang lingkup terbatas. Tidak ada
+pengiriman email, tidak ada unggah berkas atau penyimpanan CV, tidak ada peran admin, tidak
+ada reset kata sandi, dan tidak ada paginasi pada daftar lamaran. Brief meminta kebenaran
+fungsional, kode yang bersih, desain database yang baik, API yang solid, dan keamanan — jadi
+usaha diarahkan ke sana, bukan ke keluasan fitur.
+
+---
+
+## 2. Menjalankan cepat
+
+### Prasyarat
+
+- **Node.js 20–22** (`node --version`) — versi 24 belum didukung
+- **PostgreSQL 16 atau lebih baru** — bisa memakai Docker Compose yang sudah disertakan, atau
+  instalasi native ([§5](#5-menjalankan-tanpa-docker) membahas jalur native)
+
+### Langkah-langkah
 
 ```bash
-# 1. Clone and enter the repo
+# 1. Clone dan masuk ke folder repo
 git clone <repository-url> jobapp
 cd jobapp
 
-# 2. Start PostgreSQL (skip if using a native install — see §5.1)
+# 2. Jalankan PostgreSQL (lewati jika memakai instalasi native — lihat §5.1)
 docker compose up -d
 
-# 3. Configure and start the backend
+# 3. Konfigurasi dan jalankan backend
 cd backend
 cp .env.example .env          # Windows: copy .env.example .env
 npm install
-npx prisma migrate deploy     # create the schema
-npm run seed                  # load the demo data
+npx prisma migrate deploy     # membuat skema
+npm run seed                  # memuat data demo
 npm run start:dev             # http://localhost:3000/api
 ```
 
-The API is now up:
+API sudah berjalan:
 
-- API base — <http://localhost:3000/api>
+- Basis API — <http://localhost:3000/api>
 - Swagger UI — <http://localhost:3000/api/docs>
 
-In a **second terminal**:
+Di **terminal kedua**:
 
 ```bash
-# 4. Start the frontend
+# 4. Jalankan frontend
 cd frontend
 npm install
 npm run dev                   # http://localhost:5173
 ```
 
-Open <http://localhost:5173> and log in with one of the [demo accounts](#3-demo-accounts).
+Buka <http://localhost:5173> dan masuk memakai salah satu [akun demo](#3-akun-demo).
 
-> **Ports.** The backend listens on `3000`, the frontend dev server on `5173`, and PostgreSQL on
-> `5432` (Docker) or `5433` (native install — see [§5.1](#51-native-postgresql-18)). The
-> frontend proxies `/api/*` to the backend, so there is no CORS configuration to adjust during
-> development and no API URL to hardcode in the client.
+> **Port.** Backend mendengarkan di `3000`, dev server frontend di `5173`, dan PostgreSQL di
+> `5432` (Docker) atau `5433` (instalasi native — lihat [§5.1](#51-postgresql-18-native)).
+> Frontend mem-proxy `/api/*` ke backend, jadi tidak ada konfigurasi CORS yang perlu diubah
+> selama pengembangan dan tidak ada URL API yang perlu ditulis manual di klien.
 
 ---
 
-## 3. Demo accounts
+## 3. Akun demo
 
-`npm run seed` creates these. **Every account uses the password `Password123!`** (override with
-the `SEED_PASSWORD` environment variable).
+`npm run seed` membuat akun-akun ini. **Semua akun memakai kata sandi `Password123!`** (bisa
+diganti lewat variabel environment `SEED_PASSWORD`).
 
-| Role | Email | Company |
+| Peran | Email | Perusahaan |
 |---|---|---|
-| Job Seeker | `seeker@demo.com` | — |
-| Job Seeker | `andi@demo.com` | — |
-| Job Seeker | `siti@demo.com` | — |
-| Company | `company@demo.com` | PT Teknologi Nusantara |
-| Company | `startup@demo.com` | Kopi Digital Indonesia |
-| Company | `enterprise@demo.com` | Bank Sentosa Digital |
+| Pencari Kerja | `seeker@demo.com` | — |
+| Pencari Kerja | `andi@demo.com` | — |
+| Pencari Kerja | `siti@demo.com` | — |
+| Perusahaan | `company@demo.com` | PT Teknologi Nusantara |
+| Perusahaan | `startup@demo.com` | Kopi Digital Indonesia |
+| Perusahaan | `enterprise@demo.com` | Bank Sentosa Digital |
 
-The login page has one-click buttons that fill these in.
+Halaman login punya tombol sekali-klik yang mengisi kredensial ini otomatis.
 
-**The seed is designed so nothing looks empty.** It creates 9 active jobs (plus 1 intentionally
-inactive one) covering all five job types across Jakarta, Bandung, Surabaya and remote, with
-some salaries disclosed and at least one undisclosed. It also creates 10 applications spread
-across **every** status, including a `REJECTED → REVIEWING` reopen and one application on the
-inactive job — so the applicant-tracking view and the history timeline both have real content
-on first load. One job is left with no applicants so the empty state is reachable too.
+**Seed dirancang supaya tidak ada tampilan yang kosong.** Seed membuat 9 lowongan aktif
+(ditambah 1 yang sengaja nonaktif) yang mencakup kelima jenis pekerjaan di Jakarta, Bandung,
+Surabaya, dan remote, dengan sebagian gaji dicantumkan dan minimal satu yang tidak. Seed juga
+membuat 10 lamaran yang tersebar di **setiap** status, termasuk satu kasus buka kembali
+`REJECTED → REVIEWING` dan satu lamaran pada lowongan nonaktif — sehingga tampilan pelacakan
+pelamar dan riwayat status keduanya punya isi nyata saat pertama kali dibuka. Satu lowongan
+dibiarkan tanpa pelamar supaya tampilan kosong (*empty state*) juga bisa dilihat.
 
-`seeker@demo.com` has applications spanning `SHORTLISTED`, `REVIEWING`, `REJECTED`, and
-`ACCEPTED`, so a single login shows the full range of outcomes.
+`seeker@demo.com` memiliki lamaran yang mencakup status `SHORTLISTED`, `REVIEWING`, `REJECTED`,
+dan `ACCEPTED`, sehingga satu kali login saja sudah memperlihatkan seluruh rentang hasil.
 
 ---
 
-## 4. Project structure
+## 4. Struktur proyek
 
 ```
 jobapp/
 ├── docker-compose.yml          PostgreSQL 16
-├── CONTEXT.md                  Domain glossary — the shared vocabulary
-├── README.md                   This file
+├── CONTEXT.md                  Glosarium domain — kosakata bersama
+├── README.md                   Berkas ini
 ├── docs/
-│   ├── API.md                  API documentation (endpoints, auth, errors, curl examples)
+│   ├── API.md                  Dokumentasi API (endpoint, autentikasi, error, contoh curl)
 │   └── adr/                    Architecture Decision Records
 │       ├── 0001-single-user-table-with-role-discriminator.md
 │       ├── 0002-status-history-authoritative-current-status-denormalized.md
@@ -158,58 +165,58 @@ jobapp/
 │       └── 0005-authorization-guards-mutations-role-guards-reads.md
 │
 ├── backend/
-│   ├── .env.example            Copy to .env
-│   ├── apitest.js              90-assertion end-to-end verification script
+│   ├── .env.example            Salin menjadi .env
+│   ├── apitest.js              Skrip verifikasi end-to-end dengan 90 asersi
 │   ├── test/
-│   │   ├── jest-e2e.json       Jest config for the e2e suite
-│   │   ├── setup-e2e.ts        Loads .env, lifts rate limits
-│   │   └── app.e2e-spec.ts     109-assertion Jest end-to-end suite
+│   │   ├── jest-e2e.json       Konfigurasi Jest untuk suite e2e
+│   │   ├── setup-e2e.ts        Memuat .env, melonggarkan rate limit
+│   │   └── app.e2e-spec.ts     Suite Jest end-to-end dengan 109 asersi
 │   ├── prisma/
-│   │   ├── schema.prisma       Models, enums, constraints  ← the schema deliverable
-│   │   ├── migrations/         SQL migration history        ← the migration deliverable
-│   │   └── seed.ts             Demo data
+│   │   ├── schema.prisma       Model, enum, constraint  ← deliverable skema
+│   │   ├── migrations/         Riwayat migrasi SQL      ← deliverable migrasi
+│   │   └── seed.ts             Data demo
 │   └── src/
-│       ├── main.ts             Bootstrap: helmet, CORS, validation, Swagger
-│       ├── app.module.ts       Root module, global rate limiting
-│       ├── config/             Typed environment configuration
+│       ├── main.ts             Bootstrap: helmet, CORS, validasi, Swagger
+│       ├── app.module.ts       Modul root, rate limiting global
+│       ├── config/             Konfigurasi environment bertipe
 │       ├── prisma/             PrismaService (global)
-│       ├── common/             Guards, decorators, exception filter
-│       ├── auth/               Registration, login, refresh, logout
-│       ├── jobs/               Job listings and company-owned postings
-│       └── applications/       Applying, applicant tracking, status workflow
+│       ├── common/             Guard, decorator, exception filter
+│       ├── auth/               Registrasi, login, refresh, logout
+│       ├── jobs/               Daftar lowongan dan lowongan milik perusahaan
+│       └── applications/       Melamar, pelacakan pelamar, alur status
 │
 └── frontend/
-    ├── vite.config.ts          Dev server + /api proxy
-    ├── tailwind.config.js      Design tokens
+    ├── vite.config.ts          Dev server + proxy /api
+    ├── tailwind.config.js      Token desain
     └── src/
-        ├── api/                Axios client, endpoint wrappers, shared types
-        ├── auth/               AuthContext — session state
-        ├── components/         Layout, UI primitives
-        ├── pages/              One file per screen
-        ├── routes/             Route guards
-        └── lib/                Formatters
+        ├── api/                Klien Axios, pembungkus endpoint, tipe bersama
+        ├── auth/               AuthContext — status sesi
+        ├── components/         Layout, komponen UI dasar
+        ├── pages/              Satu berkas per halaman
+        ├── routes/             Guard rute
+        └── lib/                Pemformat
 ```
 
-### Where to look first
+### Mulai membaca dari mana
 
-| To understand… | Read |
+| Untuk memahami… | Baca |
 |---|---|
-| The vocabulary (what "Candidate" means, why "Closed" is not a status) | `CONTEXT.md` |
-| Why a decision was made | `docs/adr/` |
-| The API contract | `docs/API.md`, or Swagger at `/api/docs` |
-| How duplicates are actually prevented | `backend/prisma/schema.prisma` → the `Application` model |
-| How the session works | `docs/adr/0004` + `frontend/src/api/client.ts` |
+| Kosakata ("Candidate" itu apa, kenapa "Closed" bukan status) | `CONTEXT.md` |
+| Alasan di balik suatu keputusan | `docs/adr/` |
+| Kontrak API | `docs/API.md`, atau Swagger di `/api/docs` |
+| Bagaimana duplikat benar-benar dicegah | `backend/prisma/schema.prisma` → model `Application` |
+| Bagaimana sesi bekerja | `docs/adr/0004` + `frontend/src/api/client.ts` |
 
 ---
 
-## 5. Running without Docker
+## 5. Menjalankan tanpa Docker
 
-Any PostgreSQL 16 or newer instance works; only the connection string changes.
+PostgreSQL 16 atau lebih baru apa pun bisa dipakai; yang berubah hanya connection string.
 
-**Using an existing local PostgreSQL:**
+**Memakai PostgreSQL lokal yang sudah ada:**
 
 ```bash
-# Create the role and database
+# Membuat role dan database
 psql -U postgres -c "CREATE ROLE indokerja LOGIN PASSWORD 'indokerja' CREATEDB;"
 psql -U postgres -c "CREATE DATABASE indokerja OWNER indokerja;"
 ```
@@ -217,7 +224,7 @@ psql -U postgres -c "CREATE DATABASE indokerja OWNER indokerja;"
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env so the port matches your server:
+# Sunting .env agar portnya cocok dengan server Anda:
 #   DATABASE_URL="postgresql://indokerja:indokerja@localhost:5432/indokerja?schema=public"
 
 npx prisma migrate deploy
@@ -225,284 +232,294 @@ npm run seed
 npm run start:dev
 ```
 
-> **`CREATEDB` is required.** Prisma's `migrate dev` creates a throwaway *shadow database* to
-> detect schema drift. Without `CREATEDB` on the role, migrations fail with
-> `P3014 — could not create the shadow database`. Grant it with
+> **`CREATEDB` wajib ada.** `migrate dev` milik Prisma membuat *shadow database* sementara
+> untuk mendeteksi perbedaan skema. Tanpa `CREATEDB` pada role tersebut, migrasi gagal dengan
+> `P3014 — could not create the shadow database`. Berikan dengan
 > `ALTER ROLE indokerja CREATEDB;`.
 
-**Using a different host or port:** change `DATABASE_URL` in `backend/.env`. The two supported
-port choices are `5432` for the Docker stack (see `docker-compose.yml`) and `5433` for the
-native PostgreSQL 18 install documented in [§5.1](#51-native-postgresql-18). Whichever you
-pick must match what the server actually listens on.
+**Memakai host atau port lain:** ubah `DATABASE_URL` di `backend/.env`. Ada dua pilihan port
+yang didukung: `5432` untuk stack Docker (lihat `docker-compose.yml`) dan `5433` untuk
+instalasi PostgreSQL 18 native yang didokumentasikan di [§5.1](#51-postgresql-18-native).
+Pilihan Anda harus sama dengan port yang benar-benar didengarkan server.
 
-### 5.1 Native PostgreSQL 18
+### 5.1 PostgreSQL 18 native
 
-The reference machine for this project runs PostgreSQL 18 installed natively instead of
-Docker, registered as the Windows service `postgresql-x64-18`.
+Mesin acuan untuk proyek ini menjalankan PostgreSQL 18 yang dipasang secara native, bukan
+Docker, dan terdaftar sebagai layanan Windows `postgresql-x64-18`.
 
-| Setting | Value |
+| Pengaturan | Nilai |
 |---|---|
-| Install directory | `C:\Program Files\PostgreSQL\18` |
-| Data directory | `C:\Program Files\PostgreSQL\18\data` |
+| Direktori instalasi | `C:\Program Files\PostgreSQL\18` |
+| Direktori data | `C:\Program Files\PostgreSQL\18\data` |
 | Port | `5433` |
-| Service name | `postgresql-x64-18` |
-| Role / password | `indokerja` / `indokerja` |
+| Nama layanan | `postgresql-x64-18` |
+| Role / kata sandi | `indokerja` / `indokerja` |
 | Database | `indokerja` |
 
-Because it is a real Windows service, it starts with the machine — there is no database
-process to launch by hand. Verify it is listening with:
+Karena ini layanan Windows sungguhan, ia ikut menyala bersama sistem — tidak ada proses
+database yang perlu dijalankan manual. Pastikan ia mendengarkan dengan:
 
 ```bash
 netstat -ano | grep LISTENING | grep ":5433"
 ```
 
-`pg_dump`, `psql` and `pg_restore` all ship with the installer, so backups and ad-hoc queries
-need no extra tooling:
+`pg_dump`, `psql`, dan `pg_restore` semuanya sudah termasuk dalam installer, jadi pencadangan
+dan kueri ad-hoc tidak butuh perkakas tambahan:
 
 ```bash
 "/c/Program Files/PostgreSQL/18/bin/pg_dump.exe" \
   -h 127.0.0.1 -p 5433 -U indokerja -d indokerja -f "C:/path/to/backup.sql"
 ```
 
-> **Windows path gotcha.** Pass `C:/...` style paths to the PostgreSQL binaries. Git Bash
-> rewrites `/tmp/...` into an MSYS path they cannot resolve, and `pg_dump -f /tmp/x.sql` fails
-> *silently* — no file written, exit code 0.
+> **Jebakan path Windows.** Berikan path bergaya `C:/...` ke biner PostgreSQL. Git Bash
+> mengubah `/tmp/...` menjadi path MSYS yang tidak bisa dibaca biner tersebut, sehingga
+> `pg_dump -f /tmp/x.sql` gagal secara *senyap* — berkas tidak tertulis, exit code 0.
 
-**Development migrations.** For schema changes during development use
-`npx prisma migrate dev --name <description>`, which writes a new SQL migration *and* applies
-it. Production (and a clean reviewer checkout) uses `npx prisma migrate deploy`, which only
-applies migrations already committed under `prisma/migrations/`.
+**Migrasi saat pengembangan.** Untuk perubahan skema selama pengembangan gunakan
+`npx prisma migrate dev --name <deskripsi>`, yang menulis migrasi SQL baru *sekaligus*
+menerapkannya. Untuk produksi (dan checkout bersih oleh penilai) gunakan
+`npx prisma migrate deploy`, yang hanya menerapkan migrasi yang sudah ada di
+`prisma/migrations/`.
 
 ---
 
-## 6. Environment variables
+## 6. Variabel environment
 
-All backend configuration lives in `backend/.env`. Only `DATABASE_URL` and
-`JWT_ACCESS_SECRET` have no sensible default.
+Seluruh konfigurasi backend berada di `backend/.env`. Hanya `DATABASE_URL` dan
+`JWT_ACCESS_SECRET` yang tidak punya nilai default yang masuk akal.
 
-| Variable | Default | Purpose |
+| Variabel | Default | Kegunaan |
 |---|---|---|
-| `NODE_ENV` | `development` | Set to `production` to enable the hardened checks below |
-| `PORT` | `3000` | Backend listen port |
-| `DATABASE_URL` | — | **Required.** PostgreSQL connection string |
-| `JWT_ACCESS_SECRET` | — | **Required.** Signing key for access tokens |
-| `JWT_ACCESS_EXPIRES_IN` | `15m` | Access token lifetime |
-| `JWT_REFRESH_EXPIRES_IN_DAYS` | `7` | Refresh token lifetime in days |
-| `BCRYPT_ROUNDS` | `10` | Password hashing cost |
-| `CORS_ORIGIN` | `http://localhost:5173` | The one origin allowed to send credentialed requests |
-| `SEED_PASSWORD` | `Password123!` | Password given to every demo account |
+| `NODE_ENV` | `development` | Set ke `production` untuk mengaktifkan pemeriksaan pengerasan di bawah |
+| `PORT` | `3000` | Port yang didengarkan backend |
+| `DATABASE_URL` | — | **Wajib.** Connection string PostgreSQL |
+| `JWT_ACCESS_SECRET` | — | **Wajib.** Kunci penandatanganan access token |
+| `JWT_ACCESS_EXPIRES_IN` | `15m` | Masa berlaku access token |
+| `JWT_REFRESH_EXPIRES_IN_DAYS` | `7` | Masa berlaku refresh token dalam hari |
+| `BCRYPT_ROUNDS` | `10` | Biaya hashing kata sandi |
+| `CORS_ORIGIN` | `http://localhost:5173` | Satu-satunya origin yang boleh mengirim permintaan berkredensial |
+| `SEED_PASSWORD` | `Password123!` | Kata sandi untuk setiap akun demo |
 
-The frontend needs no configuration: it calls `/api/*` on its own origin and the Vite dev server
-proxies that to port 3000. For a production build, serve `frontend/dist` behind a reverse proxy
-that routes `/api` to the backend.
+Frontend tidak butuh konfigurasi: ia memanggil `/api/*` pada origin-nya sendiri dan dev server
+Vite mem-proxy-nya ke port 3000. Untuk build produksi, sajikan `frontend/dist` di belakang
+reverse proxy yang mengarahkan `/api` ke backend.
 
-### Production hardening
+### Pengerasan produksi
 
-When `NODE_ENV=production`, the app **refuses to start** rather than run insecurely:
+Saat `NODE_ENV=production`, aplikasi **menolak menyala** daripada berjalan tanpa keamanan yang
+memadai:
 
-- `JWT_ACCESS_SECRET` must be at least 32 characters and must not be a development placeholder.
-  Generate one with `openssl rand -base64 48`.
-- `CORS_ORIGIN` must be an explicit origin. `*` is rejected, because a wildcard cannot be
-  combined with credentialed requests — and allowing one would let any website drive
-  authenticated calls against the API.
+- `JWT_ACCESS_SECRET` harus minimal 32 karakter dan tidak boleh berupa placeholder
+  pengembangan. Buat dengan `openssl rand -base64 48`.
+- `CORS_ORIGIN` harus berupa origin eksplisit. `*` ditolak, karena wildcard tidak bisa
+  dikombinasikan dengan permintaan berkredensial — dan mengizinkannya berarti situs web mana
+  pun bisa memicu panggilan terautentikasi ke API.
 
-The refresh cookie also becomes `Secure` automatically in production, so **production requires
+Cookie refresh juga otomatis menjadi `Secure` di produksi, sehingga **produksi mewajibkan
 HTTPS**.
 
 ---
 
-## 7. Database schema
+## 7. Skema database
 
-Six tables. The constraints are the interesting part — several requirements are enforced by the
-database rather than by application code, because application code cannot survive a race.
+Enam tabel. Bagian yang menarik justru constraint-nya — beberapa persyaratan ditegakkan oleh
+database, bukan oleh kode aplikasi, karena kode aplikasi tidak bisa bertahan terhadap kondisi
+balapan (*race condition*).
 
 ```
-users ──┬── company_profiles        (1:1, only for companies)
-        ├── refresh_tokens          (1:N, hashed, revocable)
-        ├── jobs                    (1:N, as the owning company)
-        └── applications            (1:N, as the applicant)
+users ──┬── company_profiles        (1:1, hanya untuk perusahaan)
+        ├── refresh_tokens          (1:N, di-hash, bisa dicabut)
+        ├── jobs                    (1:N, sebagai perusahaan pemilik)
+        └── applications            (1:N, sebagai pelamar)
                                       │
 jobs ─── applications ── application_history   (1:N, append-only)
 ```
 
-| Table | Purpose | Notable constraints |
+| Tabel | Kegunaan | Constraint penting |
 |---|---|---|
-| `users` | Every account, seeker and company alike | `email` unique |
-| `company_profiles` | Company display data | `user_id` unique (1:1) |
-| `refresh_tokens` | Active sessions | `token_hash` unique, `expires_at`, `revoked_at` |
-| `jobs` | Job postings | FK to the owning company; salary bounds nullable |
-| `applications` | One application per (job, seeker) | **`UNIQUE (job_id, applicant_user_id)`** |
-| `application_history` | Append-only status trail | FK with `ON DELETE CASCADE`; `changed_by_user_id` nullable |
+| `users` | Semua akun, pencari kerja maupun perusahaan | `email` unik |
+| `company_profiles` | Data tampilan perusahaan | `user_id` unik (1:1) |
+| `refresh_tokens` | Sesi aktif | `token_hash` unik, `expires_at`, `revoked_at` |
+| `jobs` | Lowongan pekerjaan | FK ke perusahaan pemilik; batas gaji boleh null |
+| `applications` | Satu lamaran per (lowongan, pencari kerja) | **`UNIQUE (job_id, applicant_user_id)`** |
+| `application_history` | Jejak status append-only | FK dengan `ON DELETE CASCADE`; `changed_by_user_id` boleh null |
 
-### Three decisions worth calling out
+### Tiga keputusan yang perlu disorot
 
-**Duplicate applications are prevented by a unique constraint, not a check.**
-`@@unique([jobId, applicantUserId])` is the source of truth for requirement 5. The service
-*also* checks first, to return a friendly error on the common path — but if two requests race,
-the database rejects the loser and the API translates the violation into `409`. An
-application-level check alone would let both requests pass the check and then both insert. See
+**Lamaran duplikat dicegah oleh constraint unik, bukan oleh pengecekan.**
+`@@unique([jobId, applicantUserId])` adalah sumber kebenaran untuk persyaratan nomor 5.
+Service *juga* memeriksa lebih dulu, untuk memberi pesan error yang ramah pada jalur umum —
+tetapi jika dua permintaan masuk bersamaan, database menolak yang kalah dan API
+menerjemahkan pelanggaran itu menjadi `409`. Pengecekan di level aplikasi saja akan membuat
+kedua permintaan lolos pengecekan lalu keduanya melakukan insert. Lihat
 [ADR-0003](docs/adr/0003-duplicate-applications-prevented-by-unique-constraint.md).
 
-**The current status is denormalised, but the history is authoritative.**
-`applications.status` exists so listing queries do not have to find the latest row in the
-history per application. It is *always* written in the same transaction as the history row, so
-the two cannot drift. See
+**Status terkini didenormalisasi, tetapi riwayatnya yang otoritatif.**
+`applications.status` ada supaya kueri daftar tidak perlu mencari baris terbaru di riwayat
+untuk setiap lamaran. Kolom ini *selalu* ditulis dalam transaksi yang sama dengan baris
+riwayat, sehingga keduanya tidak mungkin menyimpang. Lihat
 [ADR-0002](docs/adr/0002-status-history-authoritative-current-status-denormalized.md).
 
-**`application_history.changed_by_user_id` is nullable on purpose.**
-The initial `APPLIED` entry is written by the system when the seeker applies — no user is
-acting. `NULL` records that honestly. If the acting company is later deleted, the column is set
-to `NULL` rather than cascading the delete: the history of what happened must outlive the
-account that did it.
+**`application_history.changed_by_user_id` sengaja boleh null.**
+Entri `APPLIED` pertama ditulis oleh sistem saat pencari kerja melamar — tidak ada pengguna
+yang bertindak. `NULL` mencatat fakta itu secara jujur. Jika perusahaan yang bertindak
+kemudian dihapus, kolom ini di-set `NULL` alih-alih ikut terhapus: riwayat tentang apa yang
+terjadi harus bertahan lebih lama daripada akun yang melakukannya.
 
-To inspect the schema interactively: `cd backend && npx prisma studio`.
+Untuk memeriksa skema secara interaktif: `cd backend && npx prisma studio`.
 
 ---
 
-## 8. Verifying the build
+## 8. Memverifikasi hasil build
 
-### Automated test suite (Jest e2e)
+### Suite tes otomatis (Jest e2e)
 
-`backend/test/app.e2e-spec.ts` boots the real Nest application against the real PostgreSQL
-database and drives it over HTTP — nothing is mocked. It is the quickest full check:
+`backend/test/app.e2e-spec.ts` menjalankan aplikasi Nest yang sebenarnya terhadap database
+PostgreSQL yang sebenarnya dan menggerakkannya lewat HTTP — tidak ada yang di-*mock*. Ini
+pemeriksaan menyeluruh yang paling cepat:
 
 ```bash
 cd backend
 npm run test:e2e
 ```
 
-Expected: **109 passed, 109 total**.
+Yang diharapkan: **109 passed, 109 total**.
 
-It creates its own accounts under the `@e2e.local` domain and cleans them up afterwards, so it
-runs against whatever state your database is in and leaves your seeded demo data alone. It does
-lift the rate limits via environment variables (`test/setup-e2e.ts`) — the suite makes a few
-dozen account creations from one IP, which would otherwise trip the register limit while
-testing unrelated behaviour. The limits themselves are asserted on the decorator metadata
-instead.
+Suite ini membuat akun-akunnya sendiri di domain `@e2e.local` dan membersihkannya setelah
+selesai, sehingga bisa dijalankan terhadap database dalam kondisi apa pun dan tidak
+mengganggu data demo hasil seed. Suite ini memang melonggarkan rate limit lewat variabel
+environment (`test/setup-e2e.ts`) — suite melakukan beberapa lusin pembuatan akun dari satu IP,
+yang jika tidak dilonggarkan akan memicu batas registrasi saat sedang menguji perilaku lain.
+Batasnya sendiri tetap diuji lewat metadata decorator.
 
-What it covers, in 14 blocks: login and registration, refresh-token rotation and reuse
-detection, logout and logout-all, job listing/search/filter/pagination, job detail visibility,
-applying, the duplicate rule (including a genuine concurrent race), a seeker's own
-applications, company job management, validation, applicant tracking, the full status
-workflow, the uniform error shape, rate limiting, and the database constraints themselves.
+Yang dicakup, dalam 14 blok: login dan registrasi, rotasi refresh token dan deteksi
+pemakaian ulang, logout dan logout-all, daftar/cari/filter/paginasi lowongan, visibilitas
+detail lowongan, melamar, aturan duplikat (termasuk balapan konkuren yang sesungguhnya),
+lamaran milik pencari kerja itu sendiri, pengelolaan lowongan oleh perusahaan, validasi,
+pelacakan pelamar, alur status lengkap, bentuk error yang seragam, rate limiting, dan
+constraint database itu sendiri.
 
-### Manual end-to-end smoke script
+### Skrip smoke end-to-end manual
 
-`backend/apitest.js` is a 90-assertion script that checks the same requirements against a
-running API, printing each assertion as it goes:
+`backend/apitest.js` adalah skrip dengan 90 asersi yang memeriksa persyaratan yang sama
+terhadap API yang sedang berjalan, mencetak setiap asersi saat dijalankan:
 
 ```bash
-# Terminal 1: make sure the API is running
+# Terminal 1: pastikan API sedang berjalan
 cd backend && npm run start:dev
 
 # Terminal 2
 cd backend && node apitest.js
 ```
 
-Expected output ends with `90 passed, 0 failed`.
+Output yang diharapkan berakhir dengan `90 passed, 0 failed`.
 
-> Unlike the Jest suite, this script **mutates your data** (it applies to real jobs and changes
-> real statuses). Run `npm run seed` afterwards to restore a clean demo state.
+> Berbeda dengan suite Jest, skrip ini **mengubah data Anda** (ia melamar ke lowongan
+> sungguhan dan mengubah status sungguhan). Jalankan `npm run seed` setelahnya untuk
+> mengembalikan kondisi demo yang bersih.
 
-### Type checking and builds
+### Pemeriksaan tipe dan build
 
 ```bash
 cd backend  && npm run build          # tsc via nest build
 cd frontend && npm run typecheck      # tsc --noEmit
-cd frontend && npm run build          # production bundle into dist/
+cd frontend && npm run build          # bundel produksi ke dist/
 ```
 
-### Interactive API testing
+### Pengujian API secara interaktif
 
-Open <http://localhost:3000/api/docs>. Log in through `POST /api/auth/login`, copy
-`accessToken`, click **Authorize**, and paste it. Every endpoint except `refresh`/`logout` is
-then callable from the browser.
+Buka <http://localhost:3000/api/docs>. Masuk melalui `POST /api/auth/login`, salin
+`accessToken`, klik **Authorize**, lalu tempelkan. Semua endpoint selain `refresh`/`logout`
+kemudian bisa dipanggil dari browser.
 
-### Resetting the database
+### Mengatur ulang database
 
 ```bash
 cd backend
-npm run db:reset    # drops, re-migrates, re-seeds — destroys all data
+npm run db:reset    # drop, migrasi ulang, seed ulang — menghapus semua data
 ```
 
 ---
 
-## 9. Design decisions
+## 9. Keputusan desain
 
-Each of these is recorded as an ADR in [`docs/adr/`](docs/adr/) with its full reasoning,
-the alternatives considered, and the conditions under which the decision should be revisited.
-The short version:
+Masing-masing tercatat sebagai ADR di [`docs/adr/`](docs/adr/) lengkap dengan alasannya,
+alternatif yang dipertimbangkan, dan kondisi yang seharusnya membuat keputusan itu ditinjau
+ulang. Versi singkatnya:
 
-| # | Decision | Why |
+| # | Keputusan | Alasan |
 |---|---|---|
-| [0001](docs/adr/0001-single-user-table-with-role-discriminator.md) | One `users` table with a role discriminator, not separate seeker/company tables | Authentication is identical for both; separate tables would duplicate the password hash, the token relationship and the login query |
-| [0002](docs/adr/0002-status-history-authoritative-current-status-denormalized.md) | Current status denormalised onto `applications`, history authoritative | Fast listings without a correlated subquery; written transactionally so they cannot diverge |
-| [0003](docs/adr/0003-duplicate-applications-prevented-by-unique-constraint.md) | Duplicate applies blocked by a DB unique constraint | An application-level check is a race, not a guarantee |
-| [0004](docs/adr/0004-access-token-in-memory-refresh-token-httponly-cookie.md) | Access token in memory, refresh token in an httpOnly cookie, rotated | Removes both stored tokens from the reach of XSS; rotation makes a stolen token detectable |
-| [0005](docs/adr/0005-authorization-guards-mutations-role-guards-reads.md) | Role guards on mutations, ownership checks in services returning `404` | Roles are coarse and static; ownership is per-row and returning `403` would confirm a resource exists |
+| [0001](docs/adr/0001-single-user-table-with-role-discriminator.md) | Satu tabel `users` dengan diskriminator peran, bukan tabel terpisah untuk pencari kerja/perusahaan | Autentikasi identik untuk keduanya; tabel terpisah akan menduplikasi hash kata sandi, relasi token, dan kueri login |
+| [0002](docs/adr/0002-status-history-authoritative-current-status-denormalized.md) | Status terkini didenormalisasi ke `applications`, riwayat tetap otoritatif | Daftar menjadi cepat tanpa subkueri berkorelasi; ditulis secara transaksional sehingga keduanya tidak mungkin menyimpang |
+| [0003](docs/adr/0003-duplicate-applications-prevented-by-unique-constraint.md) | Lamaran duplikat diblokir oleh constraint unik di database | Pengecekan di level aplikasi adalah balapan, bukan jaminan |
+| [0004](docs/adr/0004-access-token-in-memory-refresh-token-httponly-cookie.md) | Access token di memori, refresh token di cookie httpOnly, dirotasi | Menjauhkan kedua token tersimpan dari jangkauan XSS; rotasi membuat token yang dicuri bisa terdeteksi |
+| [0005](docs/adr/0005-authorization-guards-mutations-role-guards-reads.md) | Guard peran pada mutasi, pengecekan kepemilikan di service yang mengembalikan `404` | Peran bersifat kasar dan statis; kepemilikan bersifat per-baris dan mengembalikan `403` akan mengonfirmasi bahwa suatu sumber daya itu ada |
 
-Two choices that are not ADRs but matter:
+Dua pilihan lain yang bukan ADR tetapi penting:
 
-- **Types are hand-maintained on the frontend** (`frontend/src/api/types.ts`) rather than
-  generated from the Swagger spec or shared through a workspace package. A shared
-  `packages/types` would guarantee they stay in sync but adds a build step and an install-order
-  dependency to a two-app repo; the surface is small, changes rarely, and every field is
-  exercised by `apitest.js`. The trade-off is recorded in that file's header comment.
-- **Argon2 would be a better password hash than bcrypt** in 2026, but bcrypt is battle-tested,
-  available without a native build toolchain, and adequate at cost factor 10 for this scope.
-  The 72-byte truncation limit is handled by rejecting longer passwords outright rather than
-  silently ignoring the tail.
+- **Tipe di frontend dipelihara manual** (`frontend/src/api/types.ts`), bukan dihasilkan dari
+  spesifikasi Swagger atau dibagikan lewat paket workspace. `packages/types` bersama akan
+  menjamin keduanya tetap sinkron tetapi menambah langkah build dan ketergantungan urutan
+  instalasi pada repo dua aplikasi; permukaannya kecil, jarang berubah, dan setiap fieldnya
+  diuji oleh `apitest.js`. Trade-off-nya dicatat di komentar kepala berkas tersebut.
+- **Argon2 akan menjadi hash kata sandi yang lebih baik daripada bcrypt** pada 2026, tetapi
+  bcrypt sudah teruji lama, tersedia tanpa rantai perkakas build native, dan memadai pada
+  cost factor 10 untuk ruang lingkup ini. Batas pemotongan 72 byte ditangani dengan menolak
+  kata sandi yang lebih panjang secara langsung, bukan dengan mengabaikan sisanya diam-diam.
 
 ---
 
-## 10. Troubleshooting
+## 10. Pemecahan masalah
 
 **`P1001: Can't reach database server`**
-PostgreSQL is not running or `DATABASE_URL` is wrong. For the Docker stack check
-`docker compose ps`; for a native install check the Windows service (`services.msc` →
-`postgresql-x64-18`) or that the port is listening. Test the connection directly:
+PostgreSQL tidak berjalan atau `DATABASE_URL` salah. Untuk stack Docker, periksa
+`docker compose ps`; untuk instalasi native, periksa layanan Windows (`services.msc` →
+`postgresql-x64-18`) atau pastikan portnya mendengarkan. Uji koneksi langsung:
 `psql "$DATABASE_URL" -c 'select 1'`.
 
 **`P3014: could not create the shadow database` / `permission denied to create database`**
-The role lacks `CREATEDB`. `psql -U postgres -c "ALTER ROLE indokerja CREATEDB;"`. Only
-`migrate dev` needs it; `migrate deploy` does not.
+Role-nya tidak punya `CREATEDB`. Jalankan
+`psql -U postgres -c "ALTER ROLE indokerja CREATEDB;"`. Hanya `migrate dev` yang
+membutuhkannya; `migrate deploy` tidak.
 
 **`ECONNREFUSED 127.0.0.1:5433`**
-You are pointed at the native PostgreSQL 18 install but it is not running. Start the
-`postgresql-x64-18` service, or change `DATABASE_URL` to `5432` if you meant to use Docker.
+Anda diarahkan ke instalasi PostgreSQL 18 native tetapi layanannya tidak berjalan. Nyalakan
+layanan `postgresql-x64-18`, atau ubah `DATABASE_URL` ke `5432` jika maksud Anda memakai
+Docker.
 
-**`JWT_ACCESS_SECRET` error at startup**
-You are running with `NODE_ENV=production` but a placeholder secret. Set a real one:
-`openssl rand -base64 48`.
+**Error `JWT_ACCESS_SECRET` saat startup**
+Anda menjalankan `NODE_ENV=production` tetapi dengan secret placeholder. Set nilai
+sesungguhnya: `openssl rand -base64 48`.
 
-**`401` on every request, immediately after logging in**
-The access token is being sent but rejected. Confirm the header is
-`Authorization: Bearer <token>` — with a space, and no quotes around the token. If you are
-calling through a proxy, check it is not stripping the header.
+**`401` pada setiap permintaan, tepat setelah login**
+Access token dikirim tetapi ditolak. Pastikan headernya adalah
+`Authorization: Bearer <token>` — dengan spasi, dan tanpa tanda kutip di sekitar token. Jika
+Anda memanggil lewat proxy, periksa apakah proxy menghapus header tersebut.
 
-**Login succeeds but the session disappears on reload**
-The refresh cookie is not being stored or sent, so `/auth/refresh` fails on boot. Causes, in
-order of likelihood: the frontend is on a different origin than the backend (check
-`CORS_ORIGIN` in `backend/.env` — it must match the frontend's origin exactly, including the
-port); the connection is not HTTPS while `NODE_ENV=production` (the cookie is `Secure`); or
-cookies are blocked in the browser.
+**Login berhasil tetapi sesi hilang saat halaman dimuat ulang**
+Cookie refresh tidak tersimpan atau tidak terkirim, sehingga `/auth/refresh` gagal saat
+aplikasi dimuat. Penyebabnya, diurutkan dari yang paling mungkin: frontend berada di origin
+yang berbeda dari backend (periksa `CORS_ORIGIN` di `backend/.env` — harus sama persis dengan
+origin frontend, termasuk portnya); koneksinya bukan HTTPS sementara `NODE_ENV=production`
+(cookie menjadi `Secure`); atau cookie diblokir di browser.
 
-**Logout does not work in Swagger UI**
-Expected. Swagger runs on the API's own origin and the refresh cookie is set on that origin, so
-`logout` and `refresh` need either a browser session that already holds the cookie or an
-explicit `refreshToken` in the body. See [§7 of the API docs](docs/API.md#7-quick-start-with-curl)
-for a curl walkthrough that handles the cookie correctly with a cookie jar.
+**Logout tidak bekerja di Swagger UI**
+Ini memang perilaku yang diharapkan. Swagger berjalan di origin API sendiri dan cookie
+refresh di-set pada origin tersebut, sehingga `logout` dan `refresh` memerlukan sesi browser
+yang sudah memegang cookie itu, atau `refreshToken` eksplisit di body. Lihat
+[§7 dokumentasi API](docs/API.md#7-quick-start-with-curl) untuk panduan curl yang menangani
+cookie dengan benar memakai cookie jar.
 
-**`429 Too Many Requests` while testing**
-Auth routes are limited to 5–10 requests per minute per IP on purpose. Wait a minute, or
-restart the backend to clear the in-memory counters.
+**`429 Too Many Requests` saat pengujian**
+Rute autentikasi memang dibatasi 5–10 permintaan per menit per IP. Tunggu satu menit, atau
+mulai ulang backend untuk menghapus penghitung di memori.
 
-**Frontend build fails with a TypeScript error after editing API types**
-The frontend's types are hand-maintained, so a DTO change on the backend must be mirrored in
-`frontend/src/api/types.ts`. `npm run typecheck` catches every mismatch.
+**Build frontend gagal dengan error TypeScript setelah mengubah tipe API**
+Tipe di frontend dipelihara manual, jadi perubahan DTO di backend harus dicerminkan di
+`frontend/src/api/types.ts`. `npm run typecheck` menangkap setiap ketidakcocokan.
 
 ---
 
-## License
+## Lisensi
 
-Written as a technical assessment. Not intended for production use.
+Ditulis sebagai penilaian teknis. Tidak ditujukan untuk penggunaan produksi.

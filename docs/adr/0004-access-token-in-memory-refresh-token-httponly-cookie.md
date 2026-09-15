@@ -1,114 +1,118 @@
-# 0004 — Access token in memory, refresh token in an httpOnly cookie with server-side revocation
+# 0004 — Access token di memori, refresh token di cookie httpOnly dengan pencabutan di sisi server
 
 - **Status:** Accepted
 - **Date:** 2026-09-15
 
-## Context
+## Konteks
 
-The brief lists "Authentication & Authorization", "security", and "API validation" as
-assessment focus areas. A reviewer evaluating this submission will very likely ask
-"where is the JWT stored, and why", because the answer separates a candidate who copied a
-tutorial from one who has thought about the trade-off.
+Brief mencantumkan "Authentication & Authorization", "security", dan "API validation" sebagai
+area fokus penilaian. Penilai yang mengevaluasi pengumpulan ini sangat mungkin akan bertanya
+"di mana JWT disimpan, dan kenapa", karena jawabannya memisahkan kandidat yang menyalin
+tutorial dari yang sudah memikirkan trade-off-nya.
 
-The naive default — put the access token in `localStorage` and send it as a bearer token
-— is overwhelmingly common in tutorials. It is also readable by any JavaScript running on
-the page, so a single XSS anywhere in the app (or in a dependency) exfiltrates a
-long-lived credential.
+Default naif — menaruh access token di `localStorage` dan mengirimnya sebagai bearer token —
+sangat lazim di tutorial. Ia juga bisa dibaca oleh JavaScript apa pun yang berjalan di halaman
+tersebut, sehingga satu celah XSS di mana pun dalam aplikasi (atau di sebuah dependensi) bisa
+membocorkan kredensial berumur panjang.
 
-The competing approach — keep everything in an `httpOnly` cookie — removes XSS exposure
-but introduces CSRF exposure and makes cross-origin development between the Vite dev
-server (`:5173`) and the API (`:3000`) awkward, since cookies require credentials and
-correct `SameSite`/`CORS` configuration.
+Pendekatan pesaingnya — menyimpan semuanya di cookie `httpOnly` — menghilangkan paparan XSS
+tetapi memunculkan paparan CSRF dan membuat pengembangan lintas origin antara dev server Vite
+(`:5173`) dan API (`:3000`) menjadi canggung, karena cookie memerlukan kredensial serta
+konfigurasi `SameSite`/`CORS` yang benar.
 
-There is a third consideration: the brief requires logout to work, and a plain stateless
-JWT cannot be revoked before it expires.
+Ada pertimbangan ketiga: brief mewajibkan logout berfungsi, dan JWT stateless biasa tidak bisa
+dicabut sebelum masa berlakunya habis.
 
-## Decision
+## Keputusan
 
-We will use a **short-lived access token (15 minutes) held in JavaScript memory only**,
-and a **long-lived refresh token (7 days) in an `httpOnly`, `SameSite=Lax`, `Secure`-in-production
-cookie**.
+Kami akan memakai **access token berumur pendek (15 menit) yang hanya disimpan di memori
+JavaScript**, dan **refresh token berumur panjang (7 hari) di dalam cookie `httpOnly`,
+`SameSite=Lax`, dan `Secure` saat produksi**.
 
-Access tokens are never written to `localStorage` or `sessionStorage`. On a page reload
-the in-memory token is lost by design; the frontend silently calls `POST /auth/refresh`
-(cookie-authenticated) to obtain a new one, so the user does not perceive a logout.
+Access token tidak pernah ditulis ke `localStorage` atau `sessionStorage`. Saat halaman
+dimuat ulang, token di memori itu hilang memang sesuai desain; frontend secara senyap memanggil
+`POST /auth/refresh` (terautentikasi lewat cookie) untuk memperoleh token baru, sehingga
+pengguna tidak merasakan logout.
 
-Refresh tokens will be **stored server-side as bcrypt hashes** in a `RefreshToken` table
-with `userId`, `expiresAt` and `revokedAt`, and **rotated on every use**: a successful
-refresh revokes the presented token and issues a new one. Logout revokes the token
-server-side, making it genuinely invalid rather than merely forgotten by the client.
+Refresh token akan **disimpan di sisi server sebagai hash bcrypt** dalam tabel `RefreshToken`
+dengan `userId`, `expiresAt`, dan `revokedAt`, dan **dirotasi pada setiap pemakaian**: refresh
+yang berhasil mencabut token yang diserahkan dan menerbitkan token baru. Logout mencabut token
+di sisi server, sehingga benar-benar menjadi tidak valid, bukan sekadar dilupakan oleh klien.
 
-## Alternatives considered
+## Alternatif yang dipertimbangkan
 
-- **Access token in `localStorage`.** Simplest, and the de-facto tutorial standard.
-  Rejected because it is XSS-readable and because it forces us to answer "how does logout
-  actually work?" with "the client deletes the token", which is not revocation. For a
-  submission graded partly on security, choosing the weaker option knowingly and without
-  documentation is worse than the small extra implementation cost. If this project were
-  a throwaway prototype, I would take it.
+- **Access token di `localStorage`.** Paling sederhana, dan sudah menjadi standar de-facto di
+  tutorial. Ditolak karena bisa dibaca XSS dan karena memaksa kami menjawab "bagaimana logout
+  sebenarnya bekerja?" dengan "klien menghapus tokennya", yang bukan pencabutan. Untuk
+  pengumpulan yang dinilai sebagian dari segi keamanan, memilih opsi yang lebih lemah secara
+  sadar dan tanpa dokumentasi lebih buruk daripada biaya implementasi tambahan yang kecil.
+  Jika proyek ini adalah prototipe sekali pakai, saya akan memilihnya.
 
-- **Both tokens in `httpOnly` cookies.** Removes XSS reading entirely and would be the
-  strongest choice for a pure browser app. Rejected for this project because the access
-  token is also sent as a bearer header, which keeps the API usable by non-browser
-  clients (curl, the Swagger UI, a future mobile app) without cookie plumbing — and that
-  matters for a submission where the reviewer is expected to exercise the API directly.
+- **Kedua token di cookie `httpOnly`.** Menghilangkan pembacaan XSS sepenuhnya dan akan
+  menjadi pilihan terkuat untuk aplikasi browser murni. Ditolak untuk proyek ini karena access
+  token juga dikirim sebagai header bearer, yang menjaga API tetap bisa dipakai oleh klien non-
+  browser (curl, Swagger UI, aplikasi mobile di masa depan) tanpa perlu urusan cookie — dan itu
+  penting untuk pengumpulan di mana penilai diharapkan menguji API-nya secara langsung.
 
-- **Stateless refresh tokens (a signed JWT with no database row).** Would avoid the
-  `RefreshToken` table. Rejected because it makes logout impossible to enforce and
-  rotation meaningless (a stolen refresh JWT stays valid until expiry with no way to
-  detect reuse).
+- **Refresh token stateless (JWT bertanda tangan tanpa baris database).** Akan menghindari
+  tabel `RefreshToken`. Ditolak karena membuat logout mustahil ditegakkan dan membuat rotasi
+  menjadi tak bermakna (refresh JWT yang dicuri tetap valid sampai kedaluwarsa tanpa cara
+  mendeteksi pemakaian ulangnya).
 
-- **Session cookies backed by a server-side session store instead of JWTs.** A perfectly
-  good design, and arguably a better fit for a same-origin browser app. Rejected because
-  the brief is a job-application exercise where JWT is the expected vocabulary, and
-  because it would make the API less pleasant to demo from Swagger.
+- **Cookie sesi yang ditopang penyimpanan sesi di sisi server alih-alih JWT.** Desain yang
+  sangat baik, dan bisa dibilang lebih cocok untuk aplikasi browser satu origin. Ditolak karena
+  brief ini adalah latihan lamaran kerja di mana JWT adalah kosakata yang diharapkan, dan
+  karena itu akan membuat API kurang nyaman didemonstrasikan dari Swagger.
 
-## Consequences
+## Konsekuensi
 
-- The frontend needs an axios interceptor that, on a `401`, calls `/auth/refresh` once and
-  retries the original request. This must be guarded against infinite loops and against
-  concurrent `401`s each triggering their own refresh (the requests must queue behind a
-  single in-flight refresh). This is real complexity and it is the main cost of this
-  decision.
-- `CORS` must allow credentials and name an explicit origin; `origin: '*'` is
-  incompatible with credentialed requests. The allowed origin is read from an environment
-  variable, so the deployed origin is a config change, not a code change.
-- The API remains usable from curl and Swagger: the refresh cookie is only needed for the
-  refresh and logout endpoints, and everything else accepts a bearer token.
-- A hijacked refresh token is detectable in principle through rotation (a reused token
-  implies theft), and we **do** act on that: presenting an already-revoked token revokes every
-  active session for that user (`RefreshTokenService.consume` →
-  `revokeAllForUser`). See "Revocation scope" below for why the scope is the whole user
-  rather than a token chain.
-- `Secure` cannot be set during local HTTP development, so it is conditional on
+- Frontend membutuhkan interceptor axios yang, saat menerima `401`, memanggil `/auth/refresh`
+  sekali lalu mengulang permintaan aslinya. Ini harus dijaga terhadap loop tak terbatas dan
+  terhadap beberapa `401` bersamaan yang masing-masing memicu refresh-nya sendiri (permintaan
+  harus mengantre di belakang satu refresh yang sedang berjalan). Ini kompleksitas nyata dan
+  merupakan biaya utama dari keputusan ini.
+- `CORS` harus mengizinkan kredensial dan menyebutkan origin secara eksplisit;
+  `origin: '*'` tidak kompatibel dengan permintaan berkredensial. Origin yang diizinkan dibaca
+  dari variabel environment, sehingga origin saat deployment adalah perubahan konfigurasi,
+  bukan perubahan kode.
+- API tetap bisa dipakai dari curl dan Swagger: cookie refresh hanya diperlukan untuk endpoint
+  refresh dan logout, dan semua endpoint lainnya menerima bearer token.
+- Refresh token yang dibajak pada prinsipnya bisa dideteksi melalui rotasi (token yang dipakai
+  ulang menyiratkan pencurian), dan kami **memang** menindaklanjutinya: menyerahkan token yang
+  sudah dicabut akan mencabut seluruh sesi aktif milik user tersebut
+  (`RefreshTokenService.consume` → `revokeAllForUser`). Lihat "Cakupan pencabutan" di bawah
+  untuk alasan cakupannya adalah seluruh user, bukan satu rantai token.
+- `Secure` tidak bisa di-set selama pengembangan HTTP lokal, jadi ia dikondisikan pada
   `NODE_ENV === 'production'`.
 
-### Revocation scope
+### Cakupan pencabutan
 
-Reuse of a revoked token revokes **all** of that user's sessions, not just a per-device token
-family. Two reasons:
+Pemakaian ulang token yang sudah dicabut akan mencabut **semua** sesi user tersebut, bukan
+hanya satu keluarga token per perangkat. Ada dua alasan:
 
-- Tokens are stored as salted bcrypt hashes, so a token cannot be looked up by hashing the
-  presented value and matching a column — the presented token has to be verified against
-  candidate rows. There is no `familyId` to walk back up, because there is no way to find the
-  row without first verifying the token. Supporting families would mean adding either a
-  non-secret lookup prefix to each row or a keyed HMAC so the column becomes searchable; both
-  trade a little leak resistance for the narrower scope.
-- The security posture is deliberately conservative. A replayed refresh token means the token
-  was captured by someone other than its holder, and there is no reliable way to tell which
-  party is the legitimate one. Ending every session costs the real user one login; guessing
-  wrong costs them their account.
+- Token disimpan sebagai hash bcrypt bergaram, sehingga token tidak bisa dicari dengan
+  meng-hash nilai yang diserahkan lalu mencocokkannya ke sebuah kolom — token yang diserahkan
+  harus diverifikasi terhadap baris-baris kandidat. Tidak ada `familyId` untuk ditelusuri
+  kembali, karena tidak ada cara menemukan barisnya tanpa memverifikasi token itu lebih dulu.
+  Mendukung keluarga token berarti menambahkan entah prefiks pencarian non-rahasia pada setiap
+  baris atau HMAC ber-key supaya kolomnya bisa dicari; keduanya menukar sedikit ketahanan
+  kebocoran demi cakupan yang lebih sempit.
+- Postur keamanannya sengaja konservatif. Refresh token yang diputar ulang berarti token itu
+  dipegang oleh pihak selain pemiliknya, dan tidak ada cara yang andal untuk menentukan pihak
+  mana yang sah. Mengakhiri semua sesi hanya membuat pengguna asli login sekali lagi;
+  salah menebak akan membuat mereka kehilangan akunnya.
 
-The cost is real and worth stating plainly: a stray retry from a second browser tab logs the
-user out everywhere. This is why the frontend collapses concurrent refreshes into a single
-in-flight promise (`frontend/src/api/client.ts`) — without that, an ordinary race between two
-tabs would trigger it.
+Biayanya nyata dan layak dinyatakan terus terang: percobaan ulang yang nyasar dari tab browser
+kedua akan membuat pengguna logout di mana-mana. Itulah sebabnya frontend menggabungkan
+refresh yang bersamaan menjadi satu promise yang sedang berjalan
+(`frontend/src/api/client.ts`) — tanpa itu, kondisi balapan biasa antara dua tab akan
+memicunya.
 
-## What would change our mind
+## Yang akan mengubah pikiran kami
 
-If the application were ever deployed in a context where the API and frontend are
-same-origin and no non-browser client matters, moving the access token into an
-`httpOnly` cookie as well would be a strict security improvement, at the cost of adding
-CSRF protection. Conversely, if an XSS vulnerability were ever found, the access token's
-15-minute window bounds the damage but does not eliminate it — that would be the moment
-to revisit cookie-based access tokens.
+Jika aplikasi ini suatu saat di-deploy dalam konteks di mana API dan frontend berada di origin
+yang sama dan tidak ada klien non-browser yang penting, memindahkan access token ke cookie
+`httpOnly` juga akan menjadi peningkatan keamanan yang tegas, dengan biaya menambahkan
+perlindungan CSRF. Sebaliknya, jika suatu saat ditemukan kerentanan XSS, jendela 15 menit pada
+access token akan membatasi kerusakannya tetapi tidak menghilangkannya — itulah saatnya untuk
+meninjau ulang penggunaan access token berbasis cookie.

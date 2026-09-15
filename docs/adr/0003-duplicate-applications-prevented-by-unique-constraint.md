@@ -1,75 +1,79 @@
-# 0003 — Duplicate applications are prevented by a database unique constraint
+# 0003 — Lamaran duplikat dicegah oleh constraint unik database
 
 - **Status:** Accepted
 - **Date:** 2026-09-15
 
-## Context
+## Konteks
 
-Requirement 5 forbids a Job Seeker from applying to the same job more than once. The
-brief does not say *how* this must be enforced, but it is one of the explicitly listed
-functional requirements, so it will be tested — likely by a reviewer clicking "Apply"
-twice, and possibly by a reviewer sending two requests at once.
+Persyaratan nomor 5 melarang Pencari Kerja melamar ke lowongan yang sama lebih dari sekali.
+Brief tidak menyebutkan *bagaimana* ini harus ditegakkan, tetapi ini salah satu persyaratan
+fungsional yang disebutkan secara eksplisit, jadi ia akan diuji — kemungkinan dengan penilai
+menekan tombol "Apply" dua kali, dan mungkin juga dengan penilai mengirim dua permintaan
+sekaligus.
 
-This is a correctness requirement, not a UX preference. Two applications for the same
-`(jobId, applicantUserId)` pair existing in the database is a data-integrity failure
-regardless of how the UI behaves.
+Ini adalah persyaratan kebenaran, bukan preferensi UX. Dua lamaran untuk pasangan
+`(jobId, applicantUserId)` yang sama yang ada di database adalah kegagalan integritas data,
+terlepas dari bagaimana UI berperilaku.
 
-There is a well-known race in the naive implementation: the application reads to check
-for an existing application, finds none, and inserts. Two requests interleaved between
-the read and the insert both find none, and both insert. A guard in application code
-does not close this window.
+Ada kondisi balapan yang sudah dikenal luas pada implementasi naif: aplikasi membaca untuk
+memeriksa apakah lamaran sudah ada, tidak menemukan apa pun, lalu melakukan insert. Dua
+permintaan yang saling menyisipkan di antara operasi baca dan insert sama-sama tidak
+menemukan apa pun, dan keduanya melakukan insert. Guard di kode aplikasi tidak menutup celah
+ini.
 
-## Decision
+## Keputusan
 
-We will enforce uniqueness with a database-level unique constraint on
-`Application (jobId, applicantUserId)`, expressed in Prisma as `@@unique([jobId, applicantUserId])`
-and materialized in a migration.
+Kami akan menegakkan keunikan dengan constraint unik di level database pada
+`Application (jobId, applicantUserId)`, yang dituliskan di Prisma sebagai
+`@@unique([jobId, applicantUserId])` dan diwujudkan dalam sebuah migrasi.
 
-We will *additionally* perform a pre-check `findUnique` before inserting, so the ordinary
-duplicate attempt returns a clean `409 Conflict` with a friendly message without
-provoking a constraint violation. The pre-check is an optimization of the common path,
-not the guarantee. The database constraint is the guarantee.
+Kami *juga* akan melakukan pra-pengecekan `findUnique` sebelum insert, supaya percobaan
+duplikat yang biasa mengembalikan `409 Conflict` yang bersih dengan pesan yang ramah tanpa
+memicu pelanggaran constraint. Pra-pengecekan itu adalah optimasi untuk jalur umum, bukan
+jaminannya. Constraint database-lah jaminannya.
 
-The insert path catches Prisma error `P2002` and translates it to the same `409 Conflict`
-response. The race is therefore closed by the database, and the loser of the race still
-receives a correct, well-formed error.
+Jalur insert menangkap error Prisma `P2002` dan menerjemahkannya menjadi respons `409 Conflict`
+yang sama. Dengan begitu kondisi balapan ditutup oleh database, dan pihak yang kalah dalam
+balapan itu tetap menerima error yang benar dan berbentuk rapi.
 
-## Alternatives considered
+## Alternatif yang dipertimbangkan
 
-- **Application-layer check only.** Rejected: it does not actually enforce the
-  requirement. The window between `SELECT` and `INSERT` is small but real, and the
-  failure mode is silent duplicate data rather than an error. For an explicit
-  correctness requirement this is the wrong place to be optimistic.
+- **Pengecekan di level aplikasi saja.** Ditolak: ini sebenarnya tidak menegakkan
+  persyaratannya. Celah antara `SELECT` dan `INSERT` memang kecil tetapi nyata, dan mode
+  kegagalannya adalah data duplikat yang senyap, bukan sebuah error. Untuk persyaratan
+  kebenaran yang eksplisit, ini tempat yang salah untuk bersikap optimistis.
 
-- **Unique constraint only, no pre-check.** Functionally correct, and one fewer query on
-  the happy path. Rejected because every duplicate attempt then produces a database
-  exception in the logs, and translating `P2002` into an HTTP response requires the same
-  error-handling code anyway — so the pre-check costs one cheap indexed lookup and keeps
-  the normal path free of exceptions. Note this does mean the check happens twice in the
-  duplicate case, which is fine: duplicates should be rare.
+- **Constraint unik saja, tanpa pra-pengecekan.** Benar secara fungsional, dan mengurangi satu
+  kueri pada jalur normal. Ditolak karena setiap percobaan duplikat akan menghasilkan
+  exception database di log, dan menerjemahkan `P2002` menjadi respons HTTP tetap
+  membutuhkan kode penanganan error yang sama — jadi pra-pengecekan hanya memakan satu
+  pencarian berindeks yang murah dan menjaga jalur normal bebas dari exception. Perlu dicatat
+  ini berarti pengecekan terjadi dua kali pada kasus duplikat, dan itu tidak masalah:
+  duplikat seharusnya jarang terjadi.
 
-- **A separate "application lock" row or advisory lock per job seeker.** Rejected as
-  over-engineered. A unique index is the exact tool for this constraint and needs no
-  coordination protocol.
+- **Baris "kunci lamaran" terpisah atau advisory lock per pencari kerja.** Ditolak karena
+  terlalu rumit. Indeks unik adalah alat yang tepat untuk constraint ini dan tidak butuh
+  protokol koordinasi apa pun.
 
-## Consequences
+## Konsekuensi
 
-- The duplicate rule is enforced even if a future endpoint, script, or seed file forgets
-  to check first. Any writer that violates it fails loudly at the database.
-- `P2002` handling is now load-bearing: it must map to `409 Conflict` and not to a
-  generic `500`. There is an e2e test asserting this.
-- The constraint is per `(jobId, applicantUserId)`, which correctly permits a Job Seeker
-  to apply to two different Jobs at the same Company — including two Jobs with identical
-  titles. If the product later wanted "one application per company", that is a different
-  constraint and a migration.
-- A Job Seeker who is rejected cannot re-apply to the same Job by creating a *new*
-  application; the existing application is moved back through statuses instead. This is
-  consistent with there being no `Withdrawn` status.
+- Aturan duplikat tetap ditegakkan meskipun endpoint, skrip, atau berkas seed di masa depan
+  lupa memeriksa lebih dulu. Penulis mana pun yang melanggarnya akan gagal dengan berisik di
+  database.
+- Penanganan `P2002` kini menjadi beban penting: ia harus dipetakan ke `409 Conflict` dan
+  bukan ke `500` generik. Ada tes e2e yang memastikan hal ini.
+- Constraint ini berlaku per `(jobId, applicantUserId)`, yang dengan tepat memperbolehkan
+  seorang Pencari Kerja melamar ke dua Job berbeda di Perusahaan yang sama — termasuk dua Job
+  dengan judul identik. Jika produk kelak menginginkan "satu lamaran per perusahaan", itu
+  constraint yang berbeda dan sebuah migrasi.
+- Pencari Kerja yang ditolak tidak bisa melamar ulang ke Job yang sama dengan membuat
+  application *baru*; application yang ada dipindahkan kembali melalui status. Ini konsisten
+  dengan tidak adanya status `Withdrawn`.
 
-## What would change our mind
+## Yang akan mengubah pikiran kami
 
-If the domain ever allowed reapplying after rejection as a genuinely new application
-(discarding the prior history), the unique constraint would have to become partial —
-unique only among *live* applications — and history would need to distinguish
-application attempts. That would be a product decision with real modeling cost, and it
-would supersede this ADR.
+Jika domain ini suatu saat memperbolehkan melamar ulang setelah penolakan sebagai application
+yang benar-benar baru (membuang riwayat sebelumnya), constraint uniknya harus menjadi parsial
+— unik hanya di antara application yang *masih hidup* — dan riwayatnya perlu membedakan
+percobaan lamaran. Itu keputusan produk dengan biaya pemodelan yang nyata, dan akan
+menggantikan ADR ini.

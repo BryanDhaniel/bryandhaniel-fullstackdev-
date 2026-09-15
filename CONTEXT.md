@@ -1,179 +1,185 @@
-# IndoKerja.id — Domain Glossary
+# IndoKerja.id — Glosarium Domain
 
-This file is a **glossary and nothing else**. It records the canonical meaning of each
-domain term. It contains no implementation details, no API shapes, and no technical
-decisions — those live in `docs/adr/`.
+Berkas ini adalah **glosarium dan hanya itu**. Berkas ini mencatat makna kanonik setiap istilah
+domain. Tidak ada detail implementasi, tidak ada bentuk API, dan tidak ada keputusan teknis di
+dalamnya — semua itu ada di `docs/adr/`.
 
-If a term is used in code or conversation in a way that contradicts this file, the
-contradiction is a bug and should be resolved here first.
+Jika sebuah istilah dipakai di kode atau percakapan dengan cara yang bertentangan dengan
+berkas ini, pertentangan itu adalah bug dan harus diselesaikan di sini lebih dulu.
 
 ---
 
-## Actors
+## Aktor
 
 ### User
 
-An account that can authenticate. Every authenticated actor in the system is a User.
+Akun yang bisa melakukan autentikasi. Setiap aktor terautentikasi dalam sistem ini adalah
+User.
 
-A User has exactly one **Role**, fixed at registration and never changed afterwards.
-There is no mechanism to convert a Job Seeker into a Company or vice versa; doing so
-would invalidate the ownership of every Job and Application the account is attached to.
+Sebuah User memiliki tepat satu **Role**, ditetapkan saat registrasi dan tidak pernah berubah
+setelahnya. Tidak ada mekanisme untuk mengubah Pencari Kerja menjadi Perusahaan atau
+sebaliknya; melakukannya akan membatalkan kepemilikan setiap Job dan Application yang
+terhubung dengan akun tersebut.
 
 ### Role
 
-The single classification that determines what a User may do. Exactly two values:
+Satu-satunya klasifikasi yang menentukan apa yang boleh dilakukan seorang User. Tepatnya dua
+nilai:
 
-- **Job Seeker** — a person looking for work.
-- **Company** — an organisation posting work.
+- **Pencari Kerja (Job Seeker)** — seseorang yang sedang mencari pekerjaan.
+- **Perusahaan (Company)** — organisasi yang memasang lowongan.
 
-Role is an authorization boundary, not a display preference. It is not a subscription
-tier, a verified/unverified flag, or a permission level.
+Role adalah batas otorisasi, bukan preferensi tampilan. Role bukan tingkatan langganan, bukan
+penanda terverifikasi/belum terverifikasi, dan bukan tingkat izin.
 
-### Job Seeker
+### Pencari Kerja (Job Seeker)
 
-A User whose Role is Job Seeker. May browse Jobs, apply to Jobs, and view their own
-Applications.
+Seorang User yang Role-nya Pencari Kerja. Boleh menelusuri Job, melamar Job, dan melihat
+Application miliknya sendiri.
 
-A Job Seeker is not a "candidate". See **Candidate** below.
+Seorang Pencari Kerja bukan "kandidat". Lihat **Candidate** di bawah.
 
-### Company
+### Perusahaan (Company)
 
-A User whose Role is Company. May create Jobs, and may view and progress Applications
-submitted to Jobs it owns.
+Seorang User yang Role-nya Perusahaan. Boleh membuat Job, serta melihat dan memproses
+Application yang masuk ke Job miliknya.
 
-A Company is a *user account that represents an organisation*. It is not the
-organisation itself — see **Company Profile**.
+Sebuah Perusahaan adalah *akun pengguna yang mewakili sebuah organisasi*. Ia bukan organisasi
+itu sendiri — lihat **Company Profile**.
 
-### Company Profile
+### Profil Perusahaan (Company Profile)
 
-The descriptive attributes of the organisation behind a Company User: display name,
-description, website, logo. Exists only for Users whose Role is Company.
+Atribut deskriptif organisasi di balik sebuah User Perusahaan: nama tampilan, deskripsi, situs
+web, logo. Hanya ada untuk User yang Role-nya Perusahaan.
 
-The Company Profile is presentation data. A Job's ownership is determined by the
-Company User that created it, never by the Company Profile.
+Profil Perusahaan adalah data presentasi. Kepemilikan sebuah Job ditentukan oleh User
+Perusahaan yang membuatnya, tidak pernah oleh Profil Perusahaan.
 
 ---
 
-## Hiring
+## Perekrutan
 
-### Job
+### Job (Lowongan)
 
-A single job posting, created by exactly one Company. Carries title, description,
-location, salary range, and job type.
+Satu lowongan pekerjaan, dibuat oleh tepat satu Perusahaan. Membawa judul, deskripsi, lokasi,
+rentang gaji, dan jenis pekerjaan.
 
-A Job is **owned** by the Company that created it. Ownership is permanent and
-non-transferable. Every authorization check about a Job resolves the question
-"does this Company own this Job?"
+Sebuah Job **dimiliki** oleh Perusahaan yang membuatnya. Kepemilikan bersifat permanen dan
+tidak bisa dialihkan. Setiap pemeriksaan otorisasi tentang sebuah Job menjawab pertanyaan
+"apakah Perusahaan ini memiliki Job ini?"
 
-A Job is either **active** or **inactive**. Only active Jobs appear in the public
-listing and only active Jobs can be applied to. Inactive is a visibility state, not a
-lifecycle stage — see **Closed** below.
+Sebuah Job berada dalam keadaan **aktif** atau **nonaktif**. Hanya Job aktif yang muncul di
+daftar publik dan hanya Job aktif yang bisa dilamar. Nonaktif adalah keadaan visibilitas,
+bukan tahapan siklus hidup — lihat **Closed** di bawah.
 
-### Job Type
+### Job Type (Jenis Pekerjaan)
 
-The employment arrangement a Job offers. Exactly five values: Full Time, Part Time,
+Bentuk hubungan kerja yang ditawarkan sebuah Job. Tepatnya lima nilai: Full Time, Part Time,
 Contract, Internship, Freelance.
 
-Job Type describes the *nature of the engagement*. It is not the same as a job
-category, industry, or seniority level, and it is not a work-arrangement flag
-(remote/hybrid/on-site) — that is a separate concept that this system does not model.
+Job Type menggambarkan *sifat keterlibatan*. Ia bukan kategori pekerjaan, industri, atau
+tingkat senioritas, dan bukan penanda pengaturan kerja (remote/hybrid/on-site) — itu konsep
+terpisah yang tidak dimodelkan sistem ini.
 
-### Salary
+### Salary (Gaji)
 
-The compensation a Job offers, expressed as a minimum and maximum amount in a currency
-(default Indonesian Rupiah).
+Kompensasi yang ditawarkan sebuah Job, dinyatakan sebagai jumlah minimum dan maksimum dalam
+suatu mata uang (default Rupiah).
 
-A Salary may be entirely absent, meaning the compensation is not disclosed. An absent
-Salary is rendered as "Negotiable" and is distinct from a Salary of zero.
+Sebuah Salary boleh sepenuhnya tidak ada, yang berarti kompensasinya tidak diungkapkan.
+Salary yang tidak ada ditampilkan sebagai "Negotiable" dan berbeda dari Salary bernilai nol.
 
-### Application
+### Application (Lamaran)
 
-A Job Seeker's expression of interest in a specific Job. Created by a Job Seeker,
-against a Job, at a point in time.
+Pernyataan minat seorang Pencari Kerja terhadap Job tertentu. Dibuat oleh Pencari Kerja,
+terhadap sebuah Job, pada satu titik waktu.
 
-An Application is a **long-lived record**, not an event. It exists from the moment it is
-submitted and persists even if the Job later becomes inactive.
+Sebuah Application adalah **catatan berumur panjang**, bukan peristiwa. Ia ada sejak
+dikirimkan dan tetap ada meskipun Job-nya kemudian menjadi nonaktif.
 
-Each Application carries exactly one **current Status** and an append-only **Status
-History**. The current Status and the tip of the Status History always agree; they are
-two views of the same fact, not two independent facts.
+Setiap Application membawa tepat satu **Status terkini** dan **Status History** yang bersifat
+append-only. Status terkini dan ujung Status History selalu sepakat; keduanya adalah dua
+pandangan atas fakta yang sama, bukan dua fakta yang independen.
 
-### Applicant
+### Applicant (Pelamar)
 
-The Job Seeker who submitted an Application. Distinct from **Candidate** — an Applicant
-becomes a Candidate only from the Company's point of view.
+Pencari Kerja yang mengirimkan sebuah Application. Berbeda dari **Candidate** — seorang
+Applicant menjadi Candidate hanya dari sudut pandang Perusahaan.
 
-### Candidate
+### Candidate (Kandidat)
 
-A Job Seeker *as seen by a Company*, in the context of that Company's Job. A Job Seeker
-applying to a Job becomes a Candidate on that Job.
+Seorang Pencari Kerja *sebagaimana dilihat oleh Perusahaan*, dalam konteks Job milik
+Perusahaan tersebut. Seorang Pencari Kerja yang melamar sebuah Job menjadi Candidate pada Job
+itu.
 
-"Candidate" is a role-relative term, not an entity. There is no Candidate table, no
-Candidate identity, and no Candidate lifecycle. The same Job Seeker is simultaneously a
-Candidate on one Job and merely a Job Seeker with respect to another Company's Job.
+"Candidate" adalah istilah yang relatif terhadap peran, bukan entitas. Tidak ada tabel
+Candidate, tidak ada identitas Candidate, dan tidak ada siklus hidup Candidate. Pencari Kerja
+yang sama secara bersamaan adalah Candidate pada satu Job dan sekadar Pencari Kerja terhadap
+Job milik Perusahaan lain.
 
 ### Status
 
-The current standing of an Application, from the Company's point of view. Exactly five
-values:
+Kedudukan terkini sebuah Application, dari sudut pandang Perusahaan. Tepatnya lima nilai:
 
-| Status | Meaning |
+| Status | Makna |
 | --- | --- |
-| **Applied** | The Application exists and has not yet been considered. The initial Status, set by the system. |
-| **Reviewing** | The Company is actively evaluating the Application. |
-| **Shortlisted** | The Company considers the Applicant a strong contender. |
-| **Rejected** | The Company has declined the Application. |
-| **Accepted** | The Company has extended an offer, or the Application has otherwise concluded in the Applicant's favour. |
+| **Applied** | Application sudah ada dan belum dipertimbangkan. Status awal, ditetapkan oleh sistem. |
+| **Reviewing** | Perusahaan sedang mengevaluasi Application secara aktif. |
+| **Shortlisted** | Perusahaan menilai Applicant sebagai kandidat kuat. |
+| **Rejected** | Perusahaan menolak Application tersebut. |
+| **Accepted** | Perusahaan telah memberikan tawaran, atau Application tersebut berakhir menguntungkan si Applicant. |
 
-Only a Company may change a Status. A Status is **not** application state that the
-Applicant controls: a Job Seeker cannot withdraw, and "Withdrawn" is deliberately not a
+Hanya Perusahaan yang boleh mengubah Status. Status **bukan** keadaan lamaran yang dikendalikan
+si Pelamar: Pencari Kerja tidak bisa menarik lamaran, dan "Withdrawn" sengaja bukan sebuah
 Status.
 
-**Every Status is reachable from every other Status.** There is no enforced progression
-and no terminal Status. `Rejected` does not mean permanently discarded — a Company may
-return a Rejected Application to `Reviewing`, which is why no Status is treated as final.
-A Job Seeker must not be shown language implying that Rejected is irreversible.
+**Setiap Status bisa dicapai dari Status mana pun.** Tidak ada urutan yang diwajibkan dan
+tidak ada Status terminal. `Rejected` tidak berarti dibuang permanen — Perusahaan boleh
+mengembalikan Application yang `Rejected` ke `Reviewing`, itulah sebabnya tidak ada Status
+yang dianggap final. Pencari Kerja tidak boleh diperlihatkan bahasa yang menyiratkan bahwa
+Rejected itu tidak bisa dibatalkan.
 
-`Applied` is special in one respect only: it is written by the system when the
-Application is created and can never be assigned by a Company afterwards.
+`Applied` istimewa hanya dalam satu hal: ia ditulis oleh sistem saat Application dibuat dan
+tidak pernah bisa ditetapkan oleh Perusahaan setelahnya.
 
-### Status History
+### Status History (Riwayat Status)
 
-The append-only record of every Status an Application has ever held, in order, with the
-time it changed, who changed it, and an optional note.
+Catatan append-only atas setiap Status yang pernah dimiliki sebuah Application, secara
+berurutan, lengkap dengan waktu perubahannya, siapa yang mengubahnya, dan catatan opsional.
 
-An entry is written:
+Sebuah entri ditulis:
 
-- when the Application is created (recording `Applied`), and
-- on every subsequent Status change.
+- saat Application dibuat (mencatat `Applied`), dan
+- pada setiap perubahan Status berikutnya.
 
-Entries are never modified and never deleted. The Status History is the audit trail: if
-it and the Application's current Status ever disagree, the Status History is correct and
-the current Status is corrupt.
+Entri tidak pernah diubah dan tidak pernah dihapus. Status History adalah jejak audit: jika ia
+dan Status terkini sebuah Application saling bertentangan, Status History-lah yang benar dan
+Status terkini yang rusak.
 
-### Apply / Application Submission
+### Apply / Pengiriman Lamaran
 
-The act of creating an Application. A Job Seeker may submit **at most one** Application
-per Job. The second and any subsequent attempt is a duplicate and is refused.
+Tindakan membuat sebuah Application. Seorang Pencari Kerja boleh mengirim **paling banyak
+satu** Application per Job. Percobaan kedua dan seterusnya adalah duplikat dan ditolak.
 
-The constraint is per **Job**, not per company, per title, or per role. A Job Seeker who
-applied to one Job may freely apply to a different Job at the same Company, including a
-Job with an identical title.
+Batasan ini berlaku per **Job**, bukan per perusahaan, per judul, atau per peran. Pencari
+Kerja yang sudah melamar satu Job tetap bebas melamar Job lain di Perusahaan yang sama,
+termasuk Job dengan judul yang identik.
 
 ---
 
-## Terms deliberately NOT used
+## Istilah yang sengaja TIDAK dipakai
 
-These appeared in discussion and were rejected. Recording them prevents them from
-creeping back in.
+Istilah-istilah ini muncul dalam diskusi dan ditolak. Mencatatnya mencegahnya masuk kembali.
 
-- **"Job Listing"** — synonym for Job. Use **Job**.
-- **"Employer"** — synonym for Company. Use **Company**.
-- **"Applicant"** for the Company's view — use **Candidate** when the Company's
-  perspective is what matters. The distinction carries information.
-- **"Application Status"** as a separate entity — Status is an attribute of an
-  Application. Use **Status** and **Status History**.
-- **"Closed"** as a Status value — closure is a property of a Job (`inactive`), not of an
-  Application. A closed Job does not change the Status of Applications against it.
-- **"Withdrawn"** as a Status value — Job Seekers cannot withdraw Applications.
-- **"Verified"** as a Role or Status qualifier — this system does not verify companies.
+- **"Job Listing"** — sinonim dari Job. Pakai **Job**.
+- **"Employer"** — sinonim dari Company. Pakai **Company**.
+- **"Applicant"** untuk sudut pandang Perusahaan — pakai **Candidate** ketika perspektif
+  Perusahaan yang jadi soal. Perbedaan ini membawa informasi.
+- **"Application Status"** sebagai entitas terpisah — Status adalah atribut sebuah
+  Application. Pakai **Status** dan **Status History**.
+- **"Closed"** sebagai nilai Status — penutupan adalah properti sebuah Job (`nonaktif`), bukan
+  properti sebuah Application. Job yang ditutup tidak mengubah Status Application yang ada
+  terhadapnya.
+- **"Withdrawn"** sebagai nilai Status — Pencari Kerja tidak bisa menarik Application.
+- **"Verified"** sebagai kualifikasi Role atau Status — sistem ini tidak memverifikasi
+  perusahaan.
