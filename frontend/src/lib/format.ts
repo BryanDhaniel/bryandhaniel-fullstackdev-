@@ -29,7 +29,9 @@ export function formatSalary(
   // An identical range is a single figure, not a range.
   if (min === max) return format(min as number);
 
-  return `${format(min as number)} – ${format(max as number)}`;
+  // A plain hyphen, not an en-dash. The en-dash-as-separator is a typographic
+  // tell and it renders inconsistently across the fonts the app loads.
+  return `${format(min as number)} - ${format(max as number)}`;
 }
 
 export function jobTypeLabel(type: JobType): string {

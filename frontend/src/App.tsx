@@ -10,6 +10,7 @@ import { MyApplicationsPage } from './pages/MyApplicationsPage';
 import { CompanyJobsPage } from './pages/CompanyJobsPage';
 import { CreateJobPage } from './pages/CreateJobPage';
 import { CandidatesPage } from './pages/CandidatesPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { LoadingState } from './components/ui';
 
 /**
@@ -55,8 +56,9 @@ export default function App() {
           <Route path="/company/jobs/:jobId/candidates" element={<CandidatesPage />} />
         </Route>
 
-        {/* Anything else: fall back to the role-aware landing redirect. */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Anything else is genuinely not found. This used to redirect to "/",
+            which hid mistyped URLs behind a silent teleport. */}
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

@@ -4,9 +4,11 @@ import { useMutation } from '@tanstack/react-query';
 import { jobsApi } from '../api/endpoints';
 import { getErrorMessage } from '../api/client';
 import { Button } from '../components/Button';
-import { Alert, Field } from '../components/ui';
+import { Alert, BackLink, Field, PageHeader } from '../components/ui';
+import { IconCoins, IconInfo } from '../components/icons';
 import type { JobType } from '../api/types';
 import { JOB_TYPE_LABELS } from '../api/types';
+import { cx } from '../lib/format';
 
 const JOB_TYPES: JobType[] = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP', 'FREELANCE'];
 
@@ -36,6 +38,10 @@ const INITIAL: FormState = {
  * Salary is entered as a pair of optional numbers, left blank for an
  * undisclosed salary. The backend rejects a min greater than a max, so the same
  * rule is checked here first to give immediate feedback rather than a round trip.
+ *
+ * The form is long, so it is split into two labelled groups rather than
+ * presented as one undifferentiated column of fields. A long form with one
+ * heading reads as endless; two groups read as two decisions.
  */
 export function CreateJobPage() {
   const navigate = useNavigate();
@@ -91,131 +97,199 @@ export function CreateJobPage() {
     createMutation.mutate();
   };
 
+  const salaryPreview =
+    form.salaryMin || form.salaryMax
+      ? `${form.salaryMin ? Number(form.salaryMin).toLocaleString('id-ID') : '…'} - ${
+          form.salaryMax ? Number(form.salaryMax).toLocaleString('id-ID') : '…'
+        } IDR`
+      : 'Negotiable';
+
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">Post a job</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Job Seekers will see this immediately once it is active.
-        </p>
-      </div>
+    <div className="mx-auto max-w-3xl">
+      <BackLink to="/company/jobs">Back to my jobs</BackLink>
 
-      <form onSubmit={handleSubmit} className="card space-y-5 p-5 sm:p-6" noValidate>
-        {submitError && <Alert variant="error">{submitError}</Alert>}
+      <PageHeader
+        title="Post a job"
+        description="Job Seekers see this the moment it is active. You can close it later without losing any applications."
+      />
 
-        <Field label="Job title" htmlFor="title" error={fieldErrors.title}>
-          <input
-            id="title"
-            className="field"
-            value={form.title}
-            onChange={(e) => setField('title', e.target.value)}
-            placeholder="e.g. Backend Engineer (Node.js)"
-            maxLength={150}
-            required
-          />
-        </Field>
-
-        <Field label="Location" htmlFor="location" error={fieldErrors.location}>
-          <input
-            id="location"
-            className="field"
-            value={form.location}
-            onChange={(e) => setField('location', e.target.value)}
-            placeholder="e.g. Jakarta, Indonesia"
-            maxLength={150}
-            required
-          />
-        </Field>
-
-        <Field label="Job type" htmlFor="jobType">
-          <select
-            id="jobType"
-            className="field"
-            value={form.jobType}
-            onChange={(e) => setField('jobType', e.target.value as JobType)}
-          >
-            {JOB_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {JOB_TYPE_LABELS[type]}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        {/* Two optional numbers, with an explicit note that blank is valid. */}
-        <fieldset>
-          <legend className="field-label">
-            Salary range <span className="font-normal text-slate-400">(optional)</span>
-          </legend>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <input
-                id="salaryMin"
-                type="number"
-                min={0}
-                step={100000}
-                className="field"
-                value={form.salaryMin}
-                onChange={(e) => setField('salaryMin', e.target.value)}
-                placeholder="Minimum"
-                aria-label="Minimum salary"
-              />
-              {fieldErrors.salaryMin && <p className="field-error">{fieldErrors.salaryMin}</p>}
-            </div>
-            <div>
-              <input
-                id="salaryMax"
-                type="number"
-                min={0}
-                step={100000}
-                className="field"
-                value={form.salaryMax}
-                onChange={(e) => setField('salaryMax', e.target.value)}
-                placeholder="Maximum"
-                aria-label="Maximum salary"
-              />
-              {fieldErrors.salaryMax && <p className="field-error">{fieldErrors.salaryMax}</p>}
-            </div>
+      <form onSubmit={handleSubmit} noValidate>
+        {submitError && (
+          <div className="mb-5">
+            <Alert variant="error">{submitError}</Alert>
           </div>
-          <p className="mt-1.5 text-xs text-slate-500">
-            Leave both blank to display the salary as <strong>Negotiable</strong>. Amounts are in
-            IDR.
-          </p>
-        </fieldset>
+        )}
 
-        <Field label="Description" htmlFor="description" error={fieldErrors.description}>
-          <textarea
-            id="description"
-            className="field min-h-[160px] resize-y"
-            value={form.description}
-            onChange={(e) => setField('description', e.target.value)}
-            placeholder="Describe the role, responsibilities and requirements…"
-            maxLength={5000}
-            required
-          />
-        </Field>
+        {/* Group 1: what the role is */}
+        <section className="surface-lift p-5 sm:p-6">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
+            The role
+          </h2>
 
-        <div className="flex items-start gap-3 rounded-lg border border-slate-200 p-3">
-          <input
-            id="isActive"
-            type="checkbox"
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-            checked={form.isActive}
-            onChange={(e) => setField('isActive', e.target.checked)}
-          />
-          <label htmlFor="isActive" className="text-sm">
-            <span className="font-medium text-slate-900">Publish immediately</span>
-            <span className="mt-0.5 block text-xs text-slate-500">
-              An unpublished job is hidden from Job Seekers and cannot be applied to.
+          <div className="mt-5 space-y-5">
+            <Field label="Job title" htmlFor="title" error={fieldErrors.title}>
+              <input
+                id="title"
+                className="field"
+                value={form.title}
+                onChange={(e) => setField('title', e.target.value)}
+                placeholder="e.g. Backend Engineer (Node.js)"
+                maxLength={150}
+                required
+              />
+            </Field>
+
+            <Field label="Location" htmlFor="location" error={fieldErrors.location}>
+              <input
+                id="location"
+                className="field"
+                value={form.location}
+                onChange={(e) => setField('location', e.target.value)}
+                placeholder="e.g. Jakarta, Indonesia"
+                maxLength={150}
+                required
+              />
+            </Field>
+
+            {/* Job type as a pill group: five visible options beat a dropdown
+                that hides them behind a click and renders inconsistently
+                across platforms. */}
+            <fieldset>
+              <legend className="field-label">Job type</legend>
+              <div className="flex flex-wrap gap-2">
+                {JOB_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setField('jobType', type)}
+                    aria-pressed={form.jobType === type}
+                    className={cx('chip px-3.5 py-1.5', form.jobType === type && 'chip-active')}
+                  >
+                    {JOB_TYPE_LABELS[type]}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            <Field label="Description" htmlFor="description" error={fieldErrors.description}>
+              <textarea
+                id="description"
+                className="field min-h-[200px] resize-y"
+                value={form.description}
+                onChange={(e) => setField('description', e.target.value)}
+                placeholder="Describe the responsibilities, the requirements, and what the team is working on…"
+                maxLength={5000}
+                required
+              />
+              <p className="tabular mt-1.5 text-xs text-ink-500">
+                {form.description.length}/5000 characters
+              </p>
+            </Field>
+          </div>
+        </section>
+
+        {/* Group 2: compensation and visibility */}
+        <section className="surface-lift mt-5 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-ink-500">
+              Compensation
+            </h2>
+
+            {/* A live preview of how the salary will read on the listing. It
+                answers "what does blank actually do?" without a wall of
+                explanation. */}
+            <span className="tabular rounded-md bg-ink-100 px-2.5 py-1 text-[11px] font-bold text-ink-700">
+              {salaryPreview}
+            </span>
+          </div>
+
+          <fieldset className="mt-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="field-label" htmlFor="salaryMin">
+                  Minimum
+                </label>
+                <input
+                  id="salaryMin"
+                  type="number"
+                  min={0}
+                  step={100000}
+                  className="field tabular"
+                  value={form.salaryMin}
+                  onChange={(e) => setField('salaryMin', e.target.value)}
+                  placeholder="0"
+                />
+                {fieldErrors.salaryMin && (
+                  <p className="field-error">{fieldErrors.salaryMin}</p>
+                )}
+              </div>
+              <div>
+                <label className="field-label" htmlFor="salaryMax">
+                  Maximum
+                </label>
+                <input
+                  id="salaryMax"
+                  type="number"
+                  min={0}
+                  step={100000}
+                  className="field tabular"
+                  value={form.salaryMax}
+                  onChange={(e) => setField('salaryMax', e.target.value)}
+                  placeholder="0"
+                />
+                {fieldErrors.salaryMax && (
+                  <p className="field-error">{fieldErrors.salaryMax}</p>
+                )}
+              </div>
+            </div>
+
+            <p className="mt-3 flex items-start gap-2 rounded-lg bg-ink-100/70 px-3.5 py-3 text-xs leading-relaxed text-ink-600">
+              <IconCoins className="mt-px shrink-0 text-ink-400" aria-hidden="true" />
+              <span>
+                Amounts are in IDR. Leave both blank to list the salary as{' '}
+                <strong className="font-bold text-ink-800">Negotiable</strong>, which is
+                different from a salary of zero.
+              </span>
+            </p>
+          </fieldset>
+        </section>
+
+        {/* Group 3: publish state, as a single explicit switch */}
+        <section className="surface-lift mt-5 p-5 sm:p-6">
+          <label
+            htmlFor="isActive"
+            className="flex cursor-pointer items-start gap-3.5"
+          >
+            <input
+              id="isActive"
+              type="checkbox"
+              className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded border-ink-300 text-accent-700 transition focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
+              checked={form.isActive}
+              onChange={(e) => setField('isActive', e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-bold text-ink-900">
+                Publish immediately
+              </span>
+              <span className="mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-ink-500">
+                <IconInfo size={14} className="mt-px shrink-0 text-ink-400" aria-hidden="true" />
+                An unpublished job is hidden from Job Seekers and cannot be applied to. You can
+                change this later from My Jobs.
+              </span>
             </span>
           </label>
-        </div>
+        </section>
 
-        <div className="flex gap-2 border-t border-slate-200 pt-5">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
           <Button type="submit" isLoading={createMutation.isPending}>
             Post job
           </Button>
-          <Button type="button" variant="secondary" onClick={() => navigate('/company/jobs')}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => navigate('/company/jobs')}
+            disabled={createMutation.isPending}
+          >
             Cancel
           </Button>
         </div>

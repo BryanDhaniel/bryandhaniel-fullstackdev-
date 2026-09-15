@@ -3,14 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8f7f5" />
     <meta
       name="description"
-      content="IndoKerja.id — platform pencarian kerja dan rekrutmen."
+      content="IndoKerja.id — telusuri lowongan, lamar, dan pantau status lamaran Anda. Untuk perusahaan: pasang lowongan dan kelola kandidat."
     />
+
+    <!-- Fonts are preconnected so the display face does not arrive late and
+         reflow the page. See the note in src/index.css. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Branded favicon: the "IK" mark from the header, as an inline SVG so
+         there is no binary asset to ship. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2314655c'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='14' font-weight='700' fill='white' text-anchor='middle'%3EIK%3C/text%3E%3C/svg%3E"
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="IndoKerja.id" />
+    <meta
+      property="og:description"
+      content="Telusuri lowongan, lamar, dan pantau status lamaran Anda."
+    />
+
     <title>IndoKerja.id</title>
   </head>
-  <body class="bg-slate-50">
+  <body>
     <div id="root"></div>
+    <!-- Announces the purpose of the page to a screen reader user who lands
+         here with JavaScript still booting. -->
+    <noscript>IndoKerja.id memerlukan JavaScript untuk berjalan.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

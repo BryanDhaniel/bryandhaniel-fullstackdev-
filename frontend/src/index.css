@@ -1,3 +1,17 @@
+/* ---------------------------------------------------------------------------
+   Self-hosted font loading.
+
+   `Plus Jakarta Sans` is pulled from Google Fonts rather than bundled, which is
+   a deviation from the usual "self-host with @font-face" rule. It is deliberate
+   here: this is an assessment build with no asset pipeline for binaries, and a
+   `display: swap` stylesheet loaded ahead of the body avoids the invisible-text
+   flash. Swap it for `@font-face` + `font-display: swap` if this ever ships.
+
+   This `@import` must stay first: CSS requires `@import` to precede every other
+   statement, and PostCSS fails the build if it is moved below `@tailwind`.
+   --------------------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,66 +19,220 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    /* `ink-50` is the paper tone every surface is cut from. */
+    @apply bg-ink-50 text-ink-900 antialiased;
+    font-feature-settings: 'cv11', 'ss01';
   }
 
-  /* Visible keyboard focus everywhere, since the default outline is removed by
-     Tailwind's reset. Accessibility matters for a form-heavy app. */
+  /* Headings lean on weight and tight tracking for hierarchy rather than on
+     raw size, so the page does not shout. */
+  h1,
+  h2,
+  h3 {
+    @apply text-balance;
+  }
+
+  p {
+    @apply text-pretty;
+  }
+
+  /* Numbers that sit in columns must not jitter as they change. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The default outline is removed by Tailwind's reset, so it is replaced with
+     an accent ring. Keyboard users are the reason this exists. */
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+    @apply outline-none ring-2 ring-accent-500 ring-offset-2 ring-offset-ink-50;
+  }
+
+  /* Selection picks up the accent so even a text highlight feels branded. */
+  ::selection {
+    @apply bg-accent-200 text-accent-950;
+  }
+
+  /* A hairline scrollbar that matches the neutral ramp rather than the OS. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.ink.300') transparent;
   }
 }
 
 @layer components {
-  /* Shared input styling, so every field looks and behaves the same. */
+  /* ---------------------------------------------------------------------
+     Surfaces
+
+     Three levels only. `surface` is the default card, `surface-sunken` is for
+     content recessed into a card (timelines, cover letters), and the page
+     itself is the third. No component invents a fourth.
+     --------------------------------------------------------------------- */
+  .surface {
+    @apply rounded-xl bg-white shadow-hair;
+  }
+
+  .surface-lift {
+    @apply rounded-xl bg-white shadow-lift;
+  }
+
+  .surface-sunken {
+    @apply rounded-lg bg-ink-100/70;
+  }
+
+  /* A one-pixel top highlight. Cheap physicality: it reads as light catching
+     the top edge of a raised panel. */
+  .edge-highlight {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.7),
+      0 0 0 1px rgb(28 26 23 / 0.06);
+  }
+
+  /* ---------------------------------------------------------------------
+     Form fields
+     --------------------------------------------------------------------- */
   .field {
-    @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
-           text-slate-900 shadow-sm transition
-           placeholder:text-slate-400
-           focus:border-brand-500 focus:ring-1 focus:ring-brand-500
-           disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500;
+    @apply block w-full rounded-lg border border-ink-300 bg-white px-3 py-2.5 text-sm
+           text-ink-900 transition-colors duration-200 ease-settle
+           placeholder:text-ink-400
+           hover:border-ink-400
+           focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500
+           disabled:cursor-not-allowed disabled:bg-ink-100 disabled:text-ink-500;
   }
 
   .field-label {
-    @apply mb-1.5 block text-sm font-medium text-slate-700;
+    @apply mb-1.5 block text-sm font-semibold text-ink-800;
+  }
+
+  .field-hint {
+    @apply mt-1.5 text-xs text-ink-500;
   }
 
   .field-error {
-    @apply mt-1.5 text-xs font-medium text-rose-600;
+    @apply mt-1.5 flex items-start gap-1.5 text-xs font-medium text-status-reject;
   }
 
+  /* ---------------------------------------------------------------------
+     Buttons
+
+     Every variant shares the same press physics: a 1px translate and a 2%
+     scale-down on `:active`, which is the difference between a button that
+     looks clickable and one that feels clickable.
+     --------------------------------------------------------------------- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm
-           font-semibold transition
-           disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-lg
+           px-4 py-2.5 text-sm font-semibold whitespace-nowrap
+           transition-all duration-200 ease-settle
+           active:translate-y-px active:scale-[0.98]
+           disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0
+           disabled:active:scale-100;
   }
 
   .btn-primary {
-    @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800;
+    @apply btn bg-accent-700 text-white shadow-lift
+           hover:bg-accent-800 hover:shadow-raised;
   }
 
   .btn-secondary {
-    @apply btn border border-slate-300 bg-white text-slate-700 shadow-sm
-           hover:bg-slate-50 active:bg-slate-100;
+    @apply btn border border-ink-300 bg-white text-ink-800
+           hover:border-ink-400 hover:bg-ink-50;
   }
 
   .btn-ghost {
-    @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+    @apply btn text-ink-600 hover:bg-ink-100 hover:text-ink-900;
   }
 
   .btn-danger {
-    @apply btn bg-rose-600 text-white shadow-sm hover:bg-rose-700;
+    @apply btn bg-status-reject text-white shadow-lift hover:brightness-110;
   }
 
-  .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+  /* Small variant, for status controls inside a dense card. */
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
   }
 
+  /* ---------------------------------------------------------------------
+     Badges
+
+     Pills with a real outline rather than a ring-inset, so they hold their
+     shape against any background.
+     --------------------------------------------------------------------- */
   .badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium
-           ring-1 ring-inset;
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5
+           text-xs font-semibold;
+  }
+
+  /* ---------------------------------------------------------------------
+     Filter chip
+
+     Used for the job-type filter group, where a dropdown would hide five
+     options the user can usefully see at once.
+     --------------------------------------------------------------------- */
+  .chip {
+    @apply inline-flex items-center rounded-full border border-ink-200 bg-white px-3 py-1
+           text-xs font-semibold text-ink-600
+           transition-all duration-200 ease-settle
+           hover:border-ink-300 hover:bg-ink-50
+           active:scale-[0.97];
+  }
+
+  .chip-active {
+    @apply border-accent-600 bg-accent-700 text-white hover:border-accent-700 hover:bg-accent-800;
+  }
+
+  /* ---------------------------------------------------------------------
+     Link
+     --------------------------------------------------------------------- */
+  .link {
+    @apply font-semibold text-accent-700 underline-offset-2 transition-colors
+           duration-200 hover:text-accent-800 hover:underline;
+  }
+
+  /* ---------------------------------------------------------------------
+     Skip link. Hidden until focused, then it lands on top of everything.
+     --------------------------------------------------------------------- */
+  .skip-link {
+    @apply fixed left-4 top-4 z-[60] -translate-y-24 rounded-lg bg-ink-900 px-4 py-2.5
+           text-sm font-semibold text-white shadow-floated
+           transition-transform duration-200 ease-settle
+           focus:translate-y-0;
+  }
+}
+
+@layer utilities {
+  /* A fixed, non-interactive grain layer. Kept off scrolling containers so it
+     never triggers a repaint per frame. */
+  .grain::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0.028;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion
+
+   Everything above degrades to a static page when the OS asks for it. Motion is
+   a layer here, not a requirement for the layout to make sense.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

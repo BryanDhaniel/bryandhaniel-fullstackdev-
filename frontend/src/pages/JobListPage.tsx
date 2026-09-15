@@ -1,248 +1,278 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { jobsApi } from '../api/endpoints';
 import { getErrorMessage } from '../api/client';
-import type { JobType } from '../api/types';
+import type { JobType, PaginatedJobs } from '../api/types';
 import { JOB_TYPE_LABELS } from '../api/types';
 import { Button } from '../components/Button';
-import { CompanyAvatar, EmptyState, ErrorState, LoadingState } from '../components/ui';
-import { formatRelativeTime, formatSalary, jobTypeLabel, cx } from '../lib/format';
+import { EmptyState, ErrorState, SkeletonList } from '../components/ui';
+import { JobCard } from '../components/JobCard';
+import {
+  IconBriefcase,
+  IconCaretLeft,
+  IconCaretRight,
+  IconSearch,
+  IconSliders,
+  IconX,
+} from '../components/icons';
+import { cx } from '../lib/format';
 
 const JOB_TYPES: JobType[] = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP', 'FREELANCE'];
 
 /**
  * Job listing (requirement 2).
  *
- * Filters are held in local state and applied on submit rather than on every
- * keystroke: each keystroke would otherwise be a request, and the search box is
- * server-side (`?q=`) over title, description, location and company name.
+ * Filters live in the URL rather than in component state, so a filtered search
+ * is a shareable link and the back button undoes a filter change. The inputs
+ * themselves are local and only committed to the URL on submit: filtering on
+ * every keystroke would fire a request per character, and the search box is
+ * server-side (`?q=`) across title, description, location and company name.
  */
 export function JobListPage() {
-  const [searchInput, setSearchInput] = useState('');
-  const [locationInput, setLocationInput] = useState('');
-  const [jobType, setJobType] = useState<JobType | ''>('');
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // The values actually sent to the API, committed from the inputs above.
-  const [applied, setApplied] = useState({ q: '', location: '', jobType: '' as JobType | '' });
+  const q = searchParams.get('q') ?? '';
+  const location = searchParams.get('location') ?? '';
+  const jobType = (searchParams.get('jobType') ?? '') as JobType | '';
+  const page = Number(searchParams.get('page') ?? 1) || 1;
 
-  /**
-   * Commits the filters and returns to page 1 in one update.
-   *
-   * Resetting the page in a `useEffect` on `applied` would work, but only after
-   * an extra render — and that render fires a request for the new filters on
-   * the *old* page number, which is a page of results the user never asked for
-   * and usually beyond the end of the narrower result set.
-   */
-  const commitFilters = (next: { q: string; location: string; jobType: JobType | '' }) => {
-    setApplied(next);
-    setPage(1);
-  };
+  // Mirrors of the committed values, so the user can type without the URL
+  // updating per keystroke.
+  const [searchInput, setSearchInput] = useState(q);
+  const [locationInput, setLocationInput] = useState(location);
 
-  const { data, isPending, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ['jobs', applied.q, applied.location, applied.jobType, page],
-    queryFn: () =>
-      jobsApi.list({
-        q: applied.q,
-        location: applied.location,
-        jobType: applied.jobType,
-        page,
-        limit: 10,
-      }),
+  // Keep the inputs in step when the URL changes from outside the form
+  // (back button, a Reset click, a shared link).
+  useEffect(() => setSearchInput(q), [q]);
+  useEffect(() => setLocationInput(location), [location]);
+
+  const { data, isPending, isError, error, refetch, isFetching } = useQuery<PaginatedJobs>({
+    queryKey: ['jobs', q, location, jobType, page],
+    queryFn: () => jobsApi.list({ q, location, jobType, page, limit: 10 }),
     // Keeps the current page on screen while the next one loads, so the list
-    // does not collapse to a spinner on every pagination click.
+    // does not collapse to a skeleton on every pagination click.
     placeholderData: (previous) => previous,
   });
 
+  const hasFilters = Boolean(q || location || jobType);
+
+  /** Writes a new filter set to the URL, always returning to page 1. */
+  const commit = (next: { q?: string; location?: string; jobType?: JobType | '' }) => {
+    const params = new URLSearchParams();
+    const nextQ = next.q ?? q;
+    const nextLocation = next.location ?? location;
+    const nextType = next.jobType ?? jobType;
+
+    if (nextQ.trim()) params.set('q', nextQ.trim());
+    if (nextLocation.trim()) params.set('location', nextLocation.trim());
+    if (nextType) params.set('jobType', nextType);
+
+    setSearchParams(params, { replace: false });
+  };
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    commitFilters({ q: searchInput, location: locationInput, jobType });
+    commit({ q: searchInput, location: locationInput });
   };
 
   const handleReset = () => {
     setSearchInput('');
     setLocationInput('');
-    setJobType('');
-    commitFilters({ q: '', location: '', jobType: '' });
+    setSearchParams(new URLSearchParams(), { replace: false });
   };
 
-  const hasFilters = Boolean(applied.q || applied.location || applied.jobType);
+  const goToPage = (next: number) => {
+    const params = new URLSearchParams(searchParams);
+    if (next <= 1) params.delete('page');
+    else params.set('page', String(next));
+    setSearchParams(params);
+  };
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">Find your next role</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {data ? `${data.meta.total} open position${data.meta.total === 1 ? '' : 's'}` : 'Loading open positions…'}
+      {/* Header. No eyebrow: the page has one job and the headline says it. */}
+      <div className="mb-8">
+        <h1 className="text-display-sm font-extrabold text-ink-900">
+          Find your next role
+        </h1>
+        <p className="mt-2 text-sm text-ink-600">
+          {data ? (
+            <>
+              <span className="tabular font-semibold text-ink-900">{data.meta.total}</span>{' '}
+              open position{data.meta.total === 1 ? '' : 's'}
+              {hasFilters && ' matching your filters'}
+            </>
+          ) : (
+            'Loading open positions…'
+          )}
         </p>
       </div>
 
-      {/* Filters */}
-      <form onSubmit={handleSubmit} className="card mb-6 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="lg:col-span-2">
-            <label className="field-label" htmlFor="q">
-              Search
-            </label>
-            <input
-              id="q"
-              type="search"
-              className="field"
-              placeholder="Job title, company, keyword…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
+      <div className="grid gap-6 lg:grid-cols-[17rem_1fr] lg:items-start">
+        {/* Filter rail. Sticky on desktop so the filters stay reachable while
+            scrolling a long result list; a plain block on mobile, where a
+            sticky panel would eat the viewport. */}
+        <form
+          onSubmit={handleSubmit}
+          className="surface-lift p-4 lg:sticky lg:top-24"
+          aria-label="Filter jobs"
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-ink-900">
+              <IconSliders className="text-ink-400" aria-hidden="true" />
+              Filters
+            </h2>
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={handleReset}
+                className="flex items-center gap-1 text-xs font-semibold text-ink-500 transition-colors duration-200 hover:text-ink-900"
+              >
+                <IconX aria-hidden="true" />
+                Clear
+              </button>
+            )}
           </div>
 
-          <div>
-            <label className="field-label" htmlFor="location">
-              Location
-            </label>
-            <input
-              id="location"
-              type="text"
-              className="field"
-              placeholder="e.g. Jakarta"
-              value={locationInput}
-              onChange={(e) => setLocationInput(e.target.value)}
-            />
+          <div className="space-y-4">
+            <div>
+              <label className="field-label" htmlFor="q">
+                Search
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400">
+                  <IconSearch aria-hidden="true" />
+                </span>
+                <input
+                  id="q"
+                  type="search"
+                  className="field pl-9"
+                  placeholder="Title, company, keyword"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="field-label" htmlFor="location">
+                Location
+              </label>
+              <input
+                id="location"
+                type="text"
+                className="field"
+                placeholder="e.g. Jakarta"
+                value={locationInput}
+                onChange={(e) => setLocationInput(e.target.value)}
+              />
+            </div>
+
+            {/* Job type as a pill group rather than a <select>. Five options
+                that the user can see at once beat a dropdown that hides them,
+                and each pill is large enough to tap. */}
+            <div>
+              <span className="field-label">Job type</span>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Job type">
+                <button
+                  type="button"
+                  onClick={() => commit({ jobType: '' })}
+                  aria-pressed={jobType === ''}
+                  className={cx('chip', jobType === '' && 'chip-active')}
+                >
+                  Any
+                </button>
+                {JOB_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => commit({ jobType: type })}
+                    aria-pressed={jobType === type}
+                    className={cx('chip', jobType === type && 'chip-active')}
+                  >
+                    {JOB_TYPE_LABELS[type]}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="field-label" htmlFor="jobType">
-              Job type
-            </label>
-            <select
-              id="jobType"
-              className="field"
-              value={jobType}
-              onChange={(e) => setJobType(e.target.value as JobType | '')}
-            >
-              <option value="">All types</option>
-              {JOB_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {JOB_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Button type="submit" isLoading={isFetching && !isPending}>
+          <Button type="submit" className="mt-5 w-full">
             Apply filters
           </Button>
-          {hasFilters && (
-            <Button type="button" variant="secondary" onClick={handleReset}>
-              Reset
-            </Button>
+        </form>
+
+        {/* Results */}
+        <div className="min-w-0">
+          {isPending ? (
+            <SkeletonList count={4} />
+          ) : isError ? (
+            <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />
+          ) : data.data.length === 0 ? (
+            <EmptyState
+              icon={<IconBriefcase size={24} />}
+              title="No jobs match your filters"
+              description="Try a broader search, or clear the filters to see every open position."
+              action={
+                hasFilters ? (
+                  <Button onClick={handleReset}>Clear filters</Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <>
+              <ul
+                className={cx(
+                  'space-y-3 transition-opacity duration-300',
+                  isFetching && 'pointer-events-none opacity-50',
+                )}
+                aria-busy={isFetching}
+              >
+                {data.data.map((job) => (
+                  <li key={job.id}>
+                    <Link
+                      to={`/jobs/${job.id}`}
+                      className="block rounded-xl focus-visible:outline-none"
+                    >
+                      <JobCard job={job} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+
+              {data.meta.totalPages > 1 && (
+                <nav
+                  className="mt-6 flex items-center justify-between gap-3"
+                  aria-label="Pagination"
+                >
+                  <Button
+                    variant="secondary"
+                    onClick={() => goToPage(page - 1)}
+                    disabled={page === 1 || isFetching}
+                  >
+                    <IconCaretLeft aria-hidden="true" />
+                    Previous
+                  </Button>
+
+                  <span className="tabular text-sm font-medium text-ink-600">
+                    Page {data.meta.page} of {data.meta.totalPages}
+                  </span>
+
+                  <Button
+                    variant="secondary"
+                    onClick={() => goToPage(page + 1)}
+                    disabled={!data.meta.hasNextPage || isFetching}
+                  >
+                    Next
+                    <IconCaretRight aria-hidden="true" />
+                  </Button>
+                </nav>
+              )}
+            </>
           )}
         </div>
-      </form>
-
-      {/* Results */}
-      {isPending ? (
-        <LoadingState label="Loading jobs…" />
-      ) : isError ? (
-        <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />
-      ) : data.data.length === 0 ? (
-        <EmptyState
-          title="No jobs match your filters"
-          description="Try a broader search, or reset the filters to see every open position."
-          action={hasFilters ? <Button onClick={handleReset}>Reset filters</Button> : undefined}
-        />
-      ) : (
-        <>
-          {/* The previous page stays visible during a refetch (`placeholderData`),
-              so a dimmed list is what tells the user the results are updating. */}
-          <ul className={cx('space-y-3 transition-opacity', isFetching && 'opacity-60')} aria-busy={isFetching}>
-            {data.data.map((job) => (
-              <li key={job.id}>
-                <Link
-                  to={`/jobs/${job.id}`}
-                  className="card block p-4 transition hover:border-brand-300 hover:shadow-md sm:p-5"
-                >
-                  <div className="flex gap-4">
-                    <CompanyAvatar name={job.company.companyName} />
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <h2 className="truncate text-base font-semibold text-slate-900">
-                            {job.title}
-                          </h2>
-                          <p className="mt-0.5 text-sm text-slate-600">
-                            {job.company.companyName}
-                          </p>
-                        </div>
-
-                        {job.hasApplied && (
-                          <span className="badge shrink-0 bg-emerald-50 text-emerald-700 ring-emerald-200">
-                            Applied
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-600">
-                        <span className="inline-flex items-center gap-1.5">
-                          <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                          </svg>
-                          {job.location}
-                        </span>
-
-                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                          {jobTypeLabel(job.jobType)}
-                        </span>
-
-                        <span className="font-medium text-slate-900">
-                          {formatSalary(job.salaryMin, job.salaryMax, job.currency)}
-                        </span>
-                      </div>
-
-                      <p className="mt-3 line-clamp-2 text-sm text-slate-500">{job.description}</p>
-
-                      <p className="mt-2 text-xs text-slate-400">
-                        Posted {formatRelativeTime(job.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          {/* Pagination */}
-          {data.meta.totalPages > 1 && (
-            <nav
-              className="mt-6 flex items-center justify-between gap-3"
-              aria-label="Pagination"
-            >
-              <Button
-                variant="secondary"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1 || isFetching}
-              >
-                Previous
-              </Button>
-
-              <span className="text-sm text-slate-600">
-                Page {data.meta.page} of {data.meta.totalPages}
-              </span>
-
-              <Button
-                variant="secondary"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={!data.meta.hasNextPage || isFetching}
-              >
-                Next
-              </Button>
-            </nav>
-          )}
-        </>
-      )}
+      </div>
     </div>
   );
 }

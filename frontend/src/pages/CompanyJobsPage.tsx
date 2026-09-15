@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { jobsApi } from '../api/endpoints';
 import { getErrorMessage } from '../api/client';
 import { Button } from '../components/Button';
-import { Alert, EmptyState, ErrorState, LoadingState } from '../components/ui';
-import { formatRelativeTime, formatSalary, jobTypeLabel } from '../lib/format';
-import { useState } from 'react';
+import { Alert, EmptyState, ErrorState, PageHeader, SkeletonList } from '../components/ui';
+import { JobCard } from '../components/JobCard';
+import { IconArrowRight, IconBriefcase } from '../components/icons';
+import { cx } from '../lib/format';
 
 /** A company's own postings, with an applicant count and a link to manage the
 candidates who applied to each. */
@@ -41,35 +43,47 @@ export function CompanyJobsPage() {
    */
   const togglingId = toggleMutation.isPending ? toggleMutation.variables?.id : undefined;
 
-  if (isPending) return <LoadingState label="Loading your jobs…" />;
+  if (isPending) {
+    return (
+      <div>
+        <PageHeader title="My Jobs" description="Loading your postings…" />
+        <SkeletonList count={3} withAvatar={false} />
+      </div>
+    );
+  }
+
   if (isError) return <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />;
+
+  const activeCount = data.filter((job) => job.isActive).length;
+  const totalApplicants = data.reduce((sum, job) => sum + job.applicationCount, 0);
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">My Jobs</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {data.length === 0
-              ? 'You have not posted any jobs yet.'
-              : `${data.length} posting${data.length === 1 ? '' : 's'}.`}
-          </p>
-        </div>
-        <Link to="/company/jobs/new" className="btn-primary">
-          Post a job
-        </Link>
-      </div>
+      <PageHeader
+        title="My Jobs"
+        description={
+          data.length === 0
+            ? 'You have not posted any jobs yet.'
+            : 'Every posting you own. Closing a posting hides it from Job Seekers without touching the applications it already received.'
+        }
+        action={
+          <Link to="/company/jobs/new" className="btn-primary">
+            Post a job
+          </Link>
+        }
+      />
 
       {actionError && (
-        <div className="mb-4">
+        <div className="mb-5">
           <Alert variant="error">{actionError}</Alert>
         </div>
       )}
 
       {data.length === 0 ? (
         <EmptyState
+          icon={<IconBriefcase size={24} />}
           title="No job postings yet"
-          description="Create your first posting to start receiving applications."
+          description="Create your first posting to start receiving applications. You can leave the salary blank to show it as Negotiable."
           action={
             <Link to="/company/jobs/new" className="btn-primary">
               Post a job
@@ -77,49 +91,48 @@ export function CompanyJobsPage() {
           }
         />
       ) : (
-        <ul className="space-y-3">
-          {data.map((job) => (
-            <li key={job.id} className="card p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold text-slate-900">{job.title}</h2>
-                    <span
-                      className={
-                        job.isActive
-                          ? 'badge bg-emerald-50 text-emerald-700 ring-emerald-200'
-                          : 'badge bg-slate-100 text-slate-600 ring-slate-200'
-                      }
-                    >
-                      {job.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
+        <>
+          {/* Stat strip. Three numbers that answer the questions a recruiter
+              opens this page with, set in mono so they line up. */}
+          <dl className="mb-6 grid grid-cols-3 divide-x divide-ink-200 overflow-hidden rounded-xl border border-ink-200 bg-white">
+            <Stat label="Postings" value={data.length} />
+            <Stat label="Active" value={activeCount} accent />
+            <Stat label="Applicants" value={totalApplicants} />
+          </dl>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
-                    <span>{job.location}</span>
-                    <span>{jobTypeLabel(job.jobType)}</span>
-                    <span className="font-medium text-slate-900">
-                      {formatSalary(job.salaryMin, job.salaryMax, job.currency)}
-                    </span>
-                  </div>
+          <ul className="space-y-3">
+            {data.map((job) => (
+              <li key={job.id}>
+                <JobCard job={job} />
 
-                  <p className="mt-2 text-xs text-slate-400">
-                    Posted {formatRelativeTime(job.createdAt)}
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                {/* Row actions sit outside the card so they are not nested
+                    interactive elements, and so the card stays a pure display
+                    surface. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2 pl-1">
                   <Link
                     to={`/company/jobs/${job.id}/candidates`}
-                    className="btn-primary whitespace-nowrap"
+                    className={cx(
+                      'btn-secondary btn-sm',
+                      job.applicationCount > 0 && 'border-accent-300 text-accent-800',
+                    )}
                   >
-                    Candidates
-                    <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs font-bold">
+                    View candidates
+                    <span
+                      className={cx(
+                        'tabular ml-0.5 rounded-full px-1.5 py-px text-[11px] font-bold',
+                        job.applicationCount > 0
+                          ? 'bg-accent-600 text-white'
+                          : 'bg-ink-200 text-ink-600',
+                      )}
+                    >
                       {job.applicationCount}
                     </span>
+                    <IconArrowRight aria-hidden="true" />
                   </Link>
+
                   <Button
-                    variant="secondary"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => toggleMutation.mutate({ id: job.id, isActive: !job.isActive })}
                     isLoading={togglingId === job.id}
                     disabled={togglingId !== undefined && togglingId !== job.id}
@@ -127,11 +140,36 @@ export function CompanyJobsPage() {
                     {job.isActive ? 'Close posting' : 'Reopen posting'}
                   </Button>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
+    </div>
+  );
+}
+
+/** One figure in the stat strip. */
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+}) {
+  return (
+    <div className="px-4 py-4 sm:px-5">
+      <dt className="text-[11px] font-bold uppercase tracking-wide text-ink-500">{label}</dt>
+      <dd
+        className={cx(
+          'tabular mt-1.5 text-2xl font-extrabold tracking-tight',
+          accent ? 'text-accent-700' : 'text-ink-900',
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }

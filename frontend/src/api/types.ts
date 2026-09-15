@@ -52,13 +52,20 @@ export const ASSIGNABLE_STATUSES: ApplicationStatus[] = [
   'ACCEPTED',
 ];
 
-/** Tailwind classes per status, so colour is defined once and stays consistent. */
+/**
+ * Tailwind classes per status, so colour is defined once and stays consistent.
+ *
+ * Each status maps to a named hue in the `status` colour family rather than to
+ * a Tailwind palette entry, which keeps them at one saturation level. `APPLIED`
+ * is the neutral default: it is the system-assigned starting state, not an
+ * outcome, so it should not read as a judgement either way.
+ */
 export const STATUS_STYLES: Record<ApplicationStatus, string> = {
-  APPLIED: 'bg-slate-100 text-slate-700 ring-slate-200',
-  REVIEWING: 'bg-amber-50 text-amber-700 ring-amber-200',
-  SHORTLISTED: 'bg-violet-50 text-violet-700 ring-violet-200',
-  REJECTED: 'bg-rose-50 text-rose-700 ring-rose-200',
-  ACCEPTED: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  APPLIED: 'border-ink-300 bg-ink-100 text-ink-700',
+  REVIEWING: 'border-status-review/30 bg-status-review/10 text-status-review',
+  SHORTLISTED: 'border-status-shortlist/30 bg-status-shortlist/10 text-status-shortlist',
+  REJECTED: 'border-status-reject/30 bg-status-reject/10 text-status-reject',
+  ACCEPTED: 'border-status-accept/30 bg-status-accept/10 text-status-accept',
 };
 
 // ---------------------------------------------------------------------------

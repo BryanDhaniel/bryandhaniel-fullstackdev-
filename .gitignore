@@ -42,3 +42,39 @@ START-HERE.md
 
 # Catatan migrasi & backup lokal yang menyertai START-HERE.md
 *.local.md
+
+# --- Berkas review lokal (scratch) ------------------------------------------
+# Folder kerja untuk screenshot & skrip verifikasi UI. Isinya: skrip puppeteer
+# (.cjs), hasil screenshot (.png), dan salinan node_modules (~45 MB).
+# Tidak ada satu pun yang perlu di-push.
+#
+# Catatan: .cjs sengaja TIDAK di-ignore per-ekstensi. Banyak tool memakai .cjs
+# untuk file konfigurasi yang justru harus di-commit. Yang di-ignore folder-nya.
+.review/
+
+# --- Binari gambar & media ---------------------------------------------------
+# Repo ini tidak menyimpan aset gambar sama sekali: ikon memakai
+# @phosphor-icons/react, favicon berupa inline SVG data-URI. Jadi gambar yang
+# muncul di sini hampir pasti hasil screenshot / template desain, bukan aset app.
+#
+# .svg SENGAJA dikecualikan dari daftar ini karena SVG adalah format aset yang
+# sah untuk ikon/logo dan biasanya memang perlu di-commit.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.bmp
+*.tif
+*.tiff
+
+# Rekaman layar & ekspor desain (kalau nanti ada)
+*.mp4
+*.mov
+*.webm
+
+# Arsip — hindari binari besar masuk ke riwayat Git
+*.zip
+*.tar
+*.tar.gz
+*.7z
