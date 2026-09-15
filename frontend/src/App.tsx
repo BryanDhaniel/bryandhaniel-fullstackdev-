@@ -9,7 +9,7 @@ import { JobDetailPage } from './pages/JobDetailPage';
 import { MyApplicationsPage } from './pages/MyApplicationsPage';
 import { CompanyJobsPage } from './pages/CompanyJobsPage';
 import { CreateJobPage } from './pages/CreateJobPage';
-import { ApplicantsPage } from './pages/ApplicantsPage';
+import { CandidatesPage } from './pages/CandidatesPage';
 import { LoadingState } from './components/ui';
 
 /**
@@ -52,7 +52,7 @@ export default function App() {
         <Route element={<RequireAuth role="COMPANY" />}>
           <Route path="/company/jobs" element={<CompanyJobsPage />} />
           <Route path="/company/jobs/new" element={<CreateJobPage />} />
-          <Route path="/company/jobs/:jobId/applicants" element={<ApplicantsPage />} />
+          <Route path="/company/jobs/:jobId/candidates" element={<CandidatesPage />} />
         </Route>
 
         {/* Anything else: fall back to the role-aware landing redirect. */}

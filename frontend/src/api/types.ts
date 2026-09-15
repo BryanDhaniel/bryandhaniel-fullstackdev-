@@ -5,9 +5,11 @@
  * which is a deliberate trade-off: a shared `packages/types` workspace would
  * guarantee they stay in sync but adds a build step and an install-order
  * dependency to a two-app repo. The surface is small and changes rarely, and
- * every field here is exercised by the backend's `apitest.js`.
+ * every field here is exercised by the backend's `apitest.js` and the Jest
+ * end-to-end suite in `backend/test/`.
  *
- * See docs/adr — "two-folder monorepo" decision.
+ * The trade-off is recorded in README.md § 9, under "Two choices that are not
+ * ADRs".
  */
 
 export type Role = 'JOB_SEEKER' | 'COMPANY';
@@ -186,7 +188,8 @@ export interface Candidate {
   status: ApplicationStatus;
   coverLetter: string | null;
   createdAt: string;
-  applicant: { id: string; email: string };
+  /** The Candidate — the Job Seeker as seen by this Company. See CONTEXT.md. */
+  candidate: { id: string; email: string };
   history: ApplicationHistoryEntry[];
 }
 

@@ -24,6 +24,49 @@ const HISTORY_SELECT = {
   orderBy: { createdAt: 'asc' as const },
 };
 
+/**
+ * The summary of a Job that an application response carries.
+ *
+ * Extracted because all four read paths in this service need exactly this
+ * shape: inlining it meant the same `select` block and the same company-name
+ * fallback appeared four times, so a schema change (say, renaming
+ * `companyProfile`) would have needed four matching edits in one file.
+ */
+const APPLICATION_JOB_SELECT = {
+  id: true,
+  title: true,
+  location: true,
+  jobType: true,
+  isActive: true,
+  company: {
+    select: {
+      id: true,
+      email: true,
+      companyProfile: { select: { companyName: true } },
+    },
+  },
+} satisfies Prisma.JobSelect;
+
+type ApplicationJob = Prisma.JobGetPayload<{ select: typeof APPLICATION_JOB_SELECT }>;
+
+/** Flattens a Job into the shape an application response exposes. */
+function toApplicationJob(job: ApplicationJob) {
+  return {
+    id: job.id,
+    title: job.title,
+    location: job.location,
+    jobType: job.jobType,
+    isActive: job.isActive,
+    company: {
+      id: job.company.id,
+      // A COMPANY always has a profile in practice (created atomically at
+      // registration), but the schema permits its absence, so fall back to the
+      // email rather than emitting a null name.
+      companyName: job.company.companyProfile?.companyName ?? job.company.email,
+    },
+  };
+}
+
 @Injectable()
 export class ApplicationsService {
   private readonly logger = new Logger(ApplicationsService.name);
@@ -139,22 +182,7 @@ export class ApplicationsService {
     const applications = await this.prisma.application.findMany({
       where: { applicantUserId: user.id },
       include: {
-        job: {
-          select: {
-            id: true,
-            title: true,
-            location: true,
-            jobType: true,
-            isActive: true,
-            company: {
-              select: {
-                id: true,
-                email: true,
-                companyProfile: { select: { companyName: true } },
-              },
-            },
-          },
-        },
+        job: { select: APPLICATION_JOB_SELECT },
         ...(includeHistory ? { history: HISTORY_SELECT } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -166,18 +194,7 @@ export class ApplicationsService {
       coverLetter: application.coverLetter,
       createdAt: application.createdAt,
       updatedAt: application.updatedAt,
-      job: {
-        id: application.job.id,
-        title: application.job.title,
-        location: application.job.location,
-        jobType: application.job.jobType,
-        isActive: application.job.isActive,
-        company: {
-          id: application.job.company.id,
-          companyName:
-            application.job.company.companyProfile?.companyName ?? application.job.company.email,
-        },
-      },
+      job: toApplicationJob(application.job),
       ...(includeHistory ? { history: application.history ?? [] } : {}),
     }));
   }
@@ -187,22 +204,7 @@ export class ApplicationsService {
     const application = await this.prisma.application.findUnique({
       where: { id },
       include: {
-        job: {
-          select: {
-            id: true,
-            title: true,
-            location: true,
-            jobType: true,
-            isActive: true,
-            company: {
-              select: {
-                id: true,
-                email: true,
-                companyProfile: { select: { companyName: true } },
-              },
-            },
-          },
-        },
+        job: { select: APPLICATION_JOB_SELECT },
         history: HISTORY_SELECT,
       },
     });
@@ -218,18 +220,7 @@ export class ApplicationsService {
       coverLetter: application.coverLetter,
       createdAt: application.createdAt,
       updatedAt: application.updatedAt,
-      job: {
-        id: application.job.id,
-        title: application.job.title,
-        location: application.job.location,
-        jobType: application.job.jobType,
-        isActive: application.job.isActive,
-        company: {
-          id: application.job.company.id,
-          companyName:
-            application.job.company.companyProfile?.companyName ?? application.job.company.email,
-        },
-      },
+      job: toApplicationJob(application.job),
       history: application.history,
     };
   }
@@ -257,6 +248,8 @@ export class ApplicationsService {
         ...(query.status ? { status: query.status } : {}),
       },
       include: {
+        // Selected as `candidate` below: from the Company's point of view the
+        // Job Seeker is a Candidate. See CONTEXT.md.
         applicant: { select: { id: true, email: true } },
         history: HISTORY_SELECT,
       },
@@ -269,7 +262,7 @@ export class ApplicationsService {
       status: application.status,
       coverLetter: application.coverLetter,
       createdAt: application.createdAt,
-      applicant: application.applicant,
+      candidate: application.applicant,
       history: application.history,
     }));
   }

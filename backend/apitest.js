@@ -260,9 +260,9 @@ async function main() {
   check('read candidates -> 200', r.status === 200, 'got ' + r.status);
   const candidates = r.body;
   check('candidates returned', candidates.length > 0, candidates.length + ' candidates');
-  check('candidate exposes applicant email', !!(candidates[0].applicant && candidates[0].applicant.email));
+  check('candidate exposes their email', !!(candidates[0].candidate && candidates[0].candidate.email));
   check('candidate includes full history', Array.isArray(candidates[0].history));
-  check('candidate never exposes a password hash', !('passwordHash' in candidates[0].applicant));
+  check('candidate never exposes a password hash', !('passwordHash' in candidates[0].candidate));
 
   r = await request('GET', '/api/jobs/' + jobWithCandidates.id + '/applications?status=SHORTLISTED', { token: companyToken });
   check('status filter works', r.status === 200 && r.body.every(function (c) { return c.status === 'SHORTLISTED'; }), r.body.length + ' rows');

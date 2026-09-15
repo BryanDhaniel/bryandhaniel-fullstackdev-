@@ -76,10 +76,33 @@ server-side, making it genuinely invalid rather than merely forgotten by the cli
 - The API remains usable from curl and Swagger: the refresh cookie is only needed for the
   refresh and logout endpoints, and everything else accepts a bearer token.
 - A hijacked refresh token is detectable in principle through rotation (a reused token
-  implies theft), but we do **not** implement reuse detection / family revocation. We
-  note this as a known limitation rather than implying the system is stronger than it is.
+  implies theft), and we **do** act on that: presenting an already-revoked token revokes every
+  active session for that user (`RefreshTokenService.consume` →
+  `revokeAllForUser`). See "Revocation scope" below for why the scope is the whole user
+  rather than a token chain.
 - `Secure` cannot be set during local HTTP development, so it is conditional on
   `NODE_ENV === 'production'`.
+
+### Revocation scope
+
+Reuse of a revoked token revokes **all** of that user's sessions, not just a per-device token
+family. Two reasons:
+
+- Tokens are stored as salted bcrypt hashes, so a token cannot be looked up by hashing the
+  presented value and matching a column — the presented token has to be verified against
+  candidate rows. There is no `familyId` to walk back up, because there is no way to find the
+  row without first verifying the token. Supporting families would mean adding either a
+  non-secret lookup prefix to each row or a keyed HMAC so the column becomes searchable; both
+  trade a little leak resistance for the narrower scope.
+- The security posture is deliberately conservative. A replayed refresh token means the token
+  was captured by someone other than its holder, and there is no reliable way to tell which
+  party is the legitimate one. Ending every session costs the real user one login; guessing
+  wrong costs them their account.
+
+The cost is real and worth stating plainly: a stray retry from a second browser tab logs the
+user out everywhere. This is why the frontend collapses concurrent refreshes into a single
+in-flight promise (`frontend/src/api/client.ts`) — without that, an ordinary race between two
+tabs would trigger it.
 
 ## What would change our mind
 

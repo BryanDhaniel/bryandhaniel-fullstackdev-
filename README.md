@@ -161,7 +161,7 @@ jobapp/
 │   ├── test/
 │   │   ├── jest-e2e.json       Jest config for the e2e suite
 │   │   ├── setup-e2e.ts        Loads .env, lifts rate limits
-│   │   └── app.e2e-spec.ts     108-assertion Jest end-to-end suite
+│   │   └── app.e2e-spec.ts     109-assertion Jest end-to-end suite
 │   ├── prisma/
 │   │   ├── schema.prisma       Models, enums, constraints  ← the schema deliverable
 │   │   ├── migrations/         SQL migration history        ← the migration deliverable
@@ -335,7 +335,7 @@ cd backend
 npm run test:e2e
 ```
 
-Expected: **108 passed, 108 total**.
+Expected: **109 passed, 109 total**.
 
 It creates its own accounts under the `@e2e.local` domain and cleans them up afterwards, so it
 runs against whatever state your database is in and leaves your seeded demo data alone. It does

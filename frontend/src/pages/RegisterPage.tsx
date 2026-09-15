@@ -48,7 +48,7 @@ export function RegisterPage() {
     {
       value: 'COMPANY',
       title: 'Company',
-      description: 'Post jobs and manage applicants.',
+      description: 'Post jobs and manage candidates.',
     },
   ];
 

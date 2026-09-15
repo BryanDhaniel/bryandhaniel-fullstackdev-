@@ -1145,10 +1145,21 @@ describe('Company views its own candidates', () => {
 
     expect(res.body).toHaveLength(3);
     for (const candidate of res.body) {
-      expect(candidate.applicant.email).toBeTruthy();
+      expect(candidate.candidate.email).toBeTruthy();
       expect(candidate.status).toBe(ApplicationStatus.APPLIED);
       expect(candidate.history).toHaveLength(1);
     }
+  });
+
+  it('names the Job Seeker "candidate" from the Company’s point of view', async () => {
+    // CONTEXT.md reserves "Candidate" for exactly this perspective and rejects
+    // "Applicant" here — the distinction carries information, since the same
+    // Job Seeker is a Candidate on one job and a stranger to another company's.
+    // Asserted so the vocabulary cannot drift back without a test failing.
+    const res = await http.get(`/api/jobs/${job.id}/applications`).set(as(company)).expect(200);
+
+    expect(res.body[0]).toHaveProperty('candidate');
+    expect(res.body[0]).not.toHaveProperty('applicant');
   });
 
   it('exposes the cover letter so the company can read it', async () => {

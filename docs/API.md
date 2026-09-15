@@ -52,9 +52,12 @@ POST /api/auth/login
    access token is returned.
 3. Refresh tokens **rotate**: each successful refresh revokes the token that was presented
    and issues a replacement. Presenting an already-revoked token is treated as theft and
-   **revokes the entire token family** for that user session, forcing re-login.
+   **revokes every active session for that user**, forcing a fresh login on all devices.
+   (The scope is the user, not a per-device token chain — the reasoning is in
+   [ADR-0004](./adr/0004-access-token-in-memory-refresh-token-httponly-cookie.md#revocation-scope).)
 4. Because of rotation, a client must never fire two refreshes concurrently. The frontend
-   collapses them into one in-flight promise (`frontend/src/api/client.ts`).
+   collapses them into one in-flight promise (`frontend/src/api/client.ts`) — without that,
+   an ordinary race between two tabs would log the user out everywhere.
 
 ### Using the API from a non-browser client
 
@@ -329,7 +332,7 @@ replaced (rotation).
 | Code | When |
 |---|---|
 | `400` | Malformed body |
-| `401` | Token missing, expired, revoked, or already used. Reuse revokes the whole family. |
+| `401` | Token missing, expired, revoked, or already used. Reuse revokes every session for that user. |
 
 ---
 
@@ -715,7 +718,7 @@ The candidates who applied to one of the company's own jobs.
     "status": "REVIEWING",
     "coverLetter": "Backend engineer with Go and Node experience...",
     "createdAt": "2026-09-06T13:00:00.000Z",
-    "applicant": { "id": "b2c3d4e5-...", "email": "andi@demo.com" },
+    "candidate": { "id": "b2c3d4e5-...", "email": "andi@demo.com" },
     "history": [
       { "status": "APPLIED",   "changedByUserId": null,          "note": "Application submitted", "createdAt": "..." },
       { "status": "REVIEWING", "changedByUserId": "a1b2c3d4-...", "note": "Good domain fit.",      "createdAt": "..." }
@@ -724,8 +727,10 @@ The candidates who applied to one of the company's own jobs.
 ]
 ```
 
-The applicant's email is exposed here — it is the company's own applicant pool and they need
-to contact candidates. Their password hash and refresh tokens live on the same row and are
+The Candidate's email is exposed here — it is the company's own candidate pool and they need
+to contact them. Note the field is , not :  reserves
+"Candidate" for the Company's perspective, and the distinction is load-bearing (a Job Seeker
+is a Candidate only on jobs they applied to, and a stranger to every other company). Their password hash and refresh tokens live on the same row and are
 never serialised.
 
 **Errors**
@@ -763,32 +768,33 @@ denormalised current status can never drift from the history.
 
 **Response `200`**
 
-A real change:
+A real change. The response is intentionally minimal — it confirms what moved and from where,
+which is all the Company UI needs to update its row:
 
 ```json
 {
   "id": "9c8b7a65-...",
   "status": "SHORTLISTED",
-  "changed": true,
-  "historyEntry": {
-    "id": "4d5e6f70-...",
-    "status": "SHORTLISTED",
-    "changedByUserId": "a1b2c3d4-...",
-    "note": "Passed technical screen. Scheduling on-site.",
-    "createdAt": "2026-09-15T13:04:22.108Z"
-  }
+  "previousStatus": "REVIEWING",
+  "changed": true
 }
 ```
 
-Setting a status the application is **already in** is a no-op — `200` with `changed: false`
-and **no** history row, so the audit trail never contains consecutive duplicates:
+The created history row is **not** embedded in this response. To read the timeline after a
+change, re-fetch the application — `GET /api/applications/me/:id` for the applicant, or
+`GET /api/jobs/:jobId/applications` for the Company (whose response includes each candidate's
+`history`).
+
+Setting a status the application is **already in** is a no-op — `200` with `changed: false`,
+`previousStatus` equal to the current status, and **no** history row, so the audit trail never
+contains consecutive duplicates:
 
 ```json
 {
   "id": "9c8b7a65-...",
   "status": "SHORTLISTED",
-  "changed": false,
-  "historyEntry": null
+  "previousStatus": "SHORTLISTED",
+  "changed": false
 }
 ```
 
@@ -898,7 +904,8 @@ curl -s -b $JAR -c $JAR -X POST $API/auth/refresh
 ```
 
 Using rotation correctly means the cookie in the jar is replaced on every call. Bypassing
-curl's jar (reusing a raw token twice) is what triggers the reuse-revokes-family behaviour.
+curl's jar (reusing a raw token twice) is what triggers the reuse-revokes-every-session
+behaviour.
 
 ### Log out
 

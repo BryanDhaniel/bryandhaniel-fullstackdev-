@@ -77,9 +77,11 @@ export class MyApplicationResponseDto {
  * A candidate as seen by the company that owns the job.
  * Returned by `GET /jobs/:jobId/applications`.
  *
- * Note this exposes the applicant's identity (email) — it is the company's own
- * applicant pool, and they need to contact candidates. It never exposes the
- * applicant's password hash or refresh tokens, which live on the same row.
+ * Note this exposes the Candidate's identity (email) — it is the company's own
+ * candidate pool, and they need to contact them. It never exposes their
+ * password hash or refresh tokens, which live on the same row. (CONTEXT.md
+ * reserves "Candidate" for exactly this perspective, and rejects "Applicant"
+ * here: the distinction carries information.)
  */
 export class CandidateResponseDto {
   @ApiProperty({ example: '9c8b7a65-4321-0fed-cba9-876543210fed' })
@@ -96,9 +98,9 @@ export class CandidateResponseDto {
 
   @ApiProperty({
     example: { id: '...', email: 'seeker@demo.com' },
-    description: 'The applicant. Email is included so the company can contact them.',
+    description: 'The Candidate. Email is included so the company can contact them.',
   })
-  applicant!: { id: string; email: string };
+  candidate!: { id: string; email: string };
 
   @ApiProperty({ type: [ApplicationHistoryEntryDto] })
   history!: ApplicationHistoryEntryDto[];

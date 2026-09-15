@@ -7,7 +7,8 @@ import { Alert, EmptyState, ErrorState, LoadingState } from '../components/ui';
 import { formatRelativeTime, formatSalary, jobTypeLabel } from '../lib/format';
 import { useState } from 'react';
 
-/** A company's own postings, with an applicant count and a link to manage them. */
+/** A company's own postings, with an applicant count and a link to manage the
+candidates who applied to each. */
 export function CompanyJobsPage() {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -100,10 +101,10 @@ export function CompanyJobsPage() {
 
                 <div className="flex flex-col items-stretch gap-2 sm:items-end">
                   <Link
-                    to={`/company/jobs/${job.id}/applicants`}
+                    to={`/company/jobs/${job.id}/candidates`}
                     className="btn-primary whitespace-nowrap"
                   >
-                    Applicants
+                    Candidates
                     <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs font-bold">
                       {job.applicationCount}
                     </span>

@@ -90,7 +90,7 @@ async function bootstrap(): Promise<void> {
     .addCookieAuth('refresh_token', { type: 'apiKey', in: 'cookie' })
     .addTag('Auth', 'Registration, login, session refresh and identity')
     .addTag('Jobs', 'Job listings and company-owned postings')
-    .addTag('Applications', 'Applying to jobs, applicant tracking and status workflow')
+    .addTag('Applications', 'Applying to jobs, candidate tracking and status workflow')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

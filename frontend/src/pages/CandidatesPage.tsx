@@ -18,7 +18,7 @@ import { formatDate, formatRelativeTime } from '../lib/format';
  * "not found" rather than an authorization error — so the UI never confirms
  * that someone else's job exists.
  */
-export function ApplicantsPage() {
+export function CandidatesPage() {
   const { jobId = '' } = useParams();
   const queryClient = useQueryClient();
 
@@ -55,7 +55,7 @@ export function ApplicantsPage() {
     onError: (err) => setActionError(getErrorMessage(err)),
   });
 
-  if (isPending) return <LoadingState label="Loading applicants…" />;
+  if (isPending) return <LoadingState label="Loading candidates…" />;
   if (isError) {
     return (
       <ErrorState
@@ -83,7 +83,7 @@ export function ApplicantsPage() {
 
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Applicants</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Candidates</h1>
           <p className="mt-1 text-sm text-slate-500">
             {data.length} candidate{data.length === 1 ? '' : 's'}
             {statusFilter ? ` with status ${STATUS_LABELS[statusFilter]}` : ''}
@@ -175,7 +175,7 @@ function CandidateCard({
       <div className="p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="font-semibold text-slate-900">{candidate.applicant.email}</p>
+            <p className="font-semibold text-slate-900">{candidate.candidate.email}</p>
             <p className="mt-0.5 text-xs text-slate-500">
               Applied {formatRelativeTime(candidate.createdAt)}
             </p>
