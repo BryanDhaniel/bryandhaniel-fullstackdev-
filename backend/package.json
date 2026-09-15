@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "IndoKerja.id — Job Application Management API (NestJS + Prisma + PostgreSQL)",
   "private": true,
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "build": "nest build",
     "start": "nest start",

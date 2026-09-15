@@ -9,6 +9,17 @@ Open **3 terminals**. For each one, `cd` into the project first:
 cd /c/Users/bryan/OneDrive/Documents/Project/jobapp
 ```
 
+> **Node version matters.** This project needs **Node 20–22**. A system Node
+> **v24** is also installed on this machine, and running the backend with it
+> fails with a confusing `Cannot find module .../dist/main`. Check which one
+> your terminal is using:
+>
+> ```bash
+> node --version        # should print v22.x, not v24.x
+> ```
+>
+> If it says v24, see **Node v24 is being used** under Troubleshooting below.
+
 ---
 
 ## 0. PostgreSQL — nothing to do
@@ -46,9 +57,7 @@ npm run start:dev
 
 - Wait for: `Nest application successfully started`
 - API: http://localhost:3000
-- Swagger docs: http://localhost:3000/api/docs
-
----
+- Swagger docs: http://localhost:3000/api/docs---
 
 ## 2. Frontend dev server
 
@@ -121,6 +130,65 @@ The last column is the PID. Stop it from the PowerShell tool:
 ```powershell
 Stop-Process -Id <PID> -Force
 ```
+
+**Node v24 is being used**
+
+Symptoms: the backend dies immediately with
+
+```
+Error: Cannot find module '...\backend\dist\main'
+Node.js v24.20.0
+```
+
+and the Vite terminal spams `http proxy error: /api/... ECONNREFUSED`.
+
+Two Node versions are installed. `node --version` prints v24 in your terminal
+but the project needs v22. Node 24 is not compatible here, and `npm` reports it
+clearly if you look:
+
+```
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   required: { node: '>=20 <23' },
+npm warn EBADENGINE   current:  { node: 'v24.20.0' }
+npm warn EBADENGINE }
+```
+
+Fix — put the managed Node 22 first on PATH for that terminal:
+
+```bash
+export PATH="/c/Users/bryan/.workbuddy-ai/binaries/node/versions/22.22.2-2:$PATH"
+node --version    # v22.22.2
+```
+
+Then re-run `npm run start:dev` in the same terminal. A `.nvmrc` at the repo
+root pins this for tools that respect it.
+
+> The two symptoms are one root cause. Vite proxies `/api/*` to the backend on
+> port 3000; when the backend crashes on startup, nothing is listening, so every
+> proxied request fails with `ECONNREFUSED`. Fix the backend and the proxy
+> errors stop. They are not a separate frontend problem.
+
+**`Cannot find module '.../dist/main'` even on Node 22**
+
+The build silently produced nothing. Confirm with:
+
+```bash
+cd backend
+ls dist/main.js     # "No such file or directory" means the build no-op'd
+```
+
+Clear any stale incremental cache and rebuild:
+
+```bash
+rm -rf dist *.tsbuildinfo
+npm run build
+ls dist/main.js     # should now exist
+```
+
+This is fixed in `tsconfig.json` (the `incremental` flag was removed — it
+conflicted with Nest's `deleteOutDir`, which wipes `dist/` each build while the
+cache still claimed everything was compiled). If you ever see it return, check
+that `tsconfig.json` has no `"incremental": true`.
 
 **Reset the database to seeded state**
 

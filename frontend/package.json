@@ -2,6 +2,9 @@
   "name": "indokerja-frontend",
   "private": true,
   "version": "1.0.0",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
