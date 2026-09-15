@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: indokerja-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: indokerja
+      POSTGRES_PASSWORD: indokerja
+      POSTGRES_DB: indokerja
+    ports:
+      - "5432:5432"
+    volumes:
+      - indokerja-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Compose waits for this before reporting the service as healthy. The
+      # backend's `migrate deploy` step should be run after this turns green.
+      test: ["CMD-SHELL", "pg_isready -U indokerja -d indokerja"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  indokerja-pgdata:

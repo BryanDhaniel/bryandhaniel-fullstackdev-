@@ -1,0 +1,215 @@
+// ---------------------------------------------------------------------------
+// IndoKerja.id — Prisma schema
+//
+// Domain vocabulary is defined in ../../CONTEXT.md. Read that first: this
+// file uses its terms precisely (Job vs Application, Status vs Status History,
+// Applicant vs Candidate).
+//
+// Notable decisions, with their ADRs:
+//   - Single User table + Role discriminator ............ docs/adr/0001
+//   - Current status denormalized + history authoritative docs/adr/0002
+//   - Duplicate applications blocked by unique constraint  docs/adr/0003
+//   - Refresh tokens hashed and revocable ................ docs/adr/0004
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// The single classification of a User. Fixed at registration, never changed.
+/// See docs/adr/0001.
+enum Role {
+  JOB_SEEKER
+  COMPANY
+}
+
+/// The employment arrangement a Job offers. Deliberately does not include
+/// remote/hybrid/on-site, which is a separate concept this system does not model.
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  FREELANCE
+}
+
+/// The current standing of an Application, from the Company's point of view.
+/// Every value is reachable from every other value — no state machine is
+/// enforced, and no value is terminal.
+enum ApplicationStatus {
+  APPLIED
+  REVIEWING
+  SHORTLISTED
+  REJECTED
+  ACCEPTED
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+/// An account that can authenticate. Job Seekers and Companies share this table
+/// because their authentication is identical; only their authorization differs.
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  companyProfile CompanyProfile?
+  jobs           Job[]            @relation("CompanyJobs")
+  applications   Application[]    @relation("ApplicantApplications")
+  statusChanges  ApplicationHistory[] @relation("StatusChangedBy")
+  refreshTokens  RefreshToken[]
+
+  @@index([role])
+  @@map("users")
+}
+
+/// Descriptive attributes of the organisation behind a Company User.
+/// Exists only for Users whose role is COMPANY. Presentation data only —
+/// Job ownership is determined by the Company User, never by this record.
+model CompanyProfile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid
+  companyName String
+  description String?
+  website     String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyName])
+  @@map("company_profiles")
+}
+
+/// A refresh token, stored as a bcrypt hash so a database leak does not yield
+/// usable sessions. Rotated on every use; revoked (not deleted) on logout so
+/// that reuse can be distinguished from expiry. See docs/adr/0004.
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Hiring
+// ---------------------------------------------------------------------------
+
+/// A single job posting, owned permanently by the Company that created it.
+model Job {
+  id            String  @id @default(uuid()) @db.Uuid
+  companyUserId String  @db.Uuid
+
+  title       String
+  description String
+  location    String
+  jobType     JobType
+
+  /// Compensation, structured so it can be filtered and sorted later.
+  /// Both bounds null means the salary is undisclosed ("Negotiable"),
+  /// which is distinct from a salary of zero.
+  salaryMin Int?
+  salaryMax Int?
+  currency  String @default("IDR")
+  /// Visibility state, not a lifecycle stage. Inactive Jobs are hidden from the
+  /// public listing and cannot be applied to; existing Applications are
+  /// unaffected and keep their current Status.
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  company      User                @relation("CompanyJobs", fields: [companyUserId], references: [id], onDelete: Cascade)
+  applications Application[]
+
+  @@index([companyUserId])
+  @@index([isActive, createdAt])
+  @@index([location])
+  @@index([jobType])
+  @@map("jobs")
+}
+
+/// A Job Seeker's application to a specific Job. Long-lived: it persists even if
+/// the Job later becomes inactive.
+///
+/// `status` is a denormalized read model of the tip of `history`. Both are
+/// written in one transaction. If they ever disagree, `history` is correct.
+/// See docs/adr/0002.
+model Application {
+  id              String @id @default(uuid()) @db.Uuid
+  jobId           String @db.Uuid
+  applicantUserId String @db.Uuid
+
+  status ApplicationStatus @default(APPLIED)
+
+  /// Optional cover letter supplied at application time.
+  coverLetter String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  job       Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicant User    @relation("ApplicantApplications", fields: [applicantUserId], references: [id], onDelete: Cascade)
+  history   ApplicationHistory[]
+
+  /// Requirement 5: a Job Seeker may apply to a given Job at most once.
+  /// This database constraint — not the application-layer pre-check — is what
+  /// actually guarantees it under concurrency. See docs/adr/0003.
+  @@unique([jobId, applicantUserId])
+  @@index([applicantUserId, createdAt])
+  @@index([jobId, status])
+  @@map("applications")
+}
+
+/// Append-only audit trail of every Status an Application has ever held.
+/// Rows are never updated and never deleted.
+///
+/// The first row (recording APPLIED) is written by the same transaction that
+/// creates the Application — not deferred to the first status change.
+model ApplicationHistory {
+  id            String @id @default(uuid()) @db.Uuid
+  applicationId String @db.Uuid
+
+  status ApplicationStatus
+
+  /// Null for the initial APPLIED entry, which is written by the system rather
+  /// than by a Company user.
+  changedByUserId String? @db.Uuid
+  note            String?
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  changedBy   User?       @relation("StatusChangedBy", fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([applicationId, createdAt])
+  @@map("application_history")
+}
