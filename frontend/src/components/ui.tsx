@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ApplicationStatus } from '../api/types';
 import { STATUS_LABELS, STATUS_STYLES } from '../api/types';
-import { cx } from '../lib/format';
+import { companyInitials, cx } from '../lib/format';
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -166,15 +166,6 @@ export function CompanyAvatar({
   name: string;
   size?: 'sm' | 'md' | 'lg';
 }) {
-  const initials = name
-    .replace(/[^a-zA-Z0-9\s]/g, '')
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join('')
-    .toUpperCase() || '?';
-
   const sizes = {
     sm: 'h-9 w-9 text-xs',
     md: 'h-11 w-11 text-sm',
@@ -189,7 +180,7 @@ export function CompanyAvatar({
       )}
       aria-hidden="true"
     >
-      {initials}
+      {companyInitials(name)}
     </span>
   );
 }

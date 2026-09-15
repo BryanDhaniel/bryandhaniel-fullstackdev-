@@ -32,6 +32,15 @@ export function CompanyJobsPage() {
     onError: (err) => setActionError(getErrorMessage(err)),
   });
 
+  /**
+   * The row whose close/reopen is in flight.
+   *
+   * `toggleMutation.isPending` is one flag for the whole mutation; applying it
+   * to every row would spin all the buttons at once, implying every posting is
+   * being changed. The mutation's `variables` name the actual target.
+   */
+  const togglingId = toggleMutation.isPending ? toggleMutation.variables?.id : undefined;
+
   if (isPending) return <LoadingState label="Loading your jobs…" />;
   if (isError) return <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />;
 
@@ -112,7 +121,8 @@ export function CompanyJobsPage() {
                   <Button
                     variant="secondary"
                     onClick={() => toggleMutation.mutate({ id: job.id, isActive: !job.isActive })}
-                    isLoading={toggleMutation.isPending}
+                    isLoading={togglingId === job.id}
+                    disabled={togglingId !== undefined && togglingId !== job.id}
                   >
                     {job.isActive ? 'Close posting' : 'Reopen posting'}
                   </Button>

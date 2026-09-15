@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { applicationsApi } from '../api/endpoints';
-import { getErrorMessage } from '../api/client';
+import { getErrorStatus, getErrorMessage } from '../api/client';
 import { Button } from '../components/Button';
 import { Alert, EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/ui';
 import type { ApplicationStatus, Candidate } from '../api/types';
@@ -55,12 +55,21 @@ export function CandidatesPage() {
     onError: (err) => setActionError(getErrorMessage(err)),
   });
 
+  /**
+   * Which candidate is currently being updated.
+   *
+   * `statusMutation.isPending` is a single flag for the whole mutation, so
+   * passing it to every card would spin the buttons on all of them at once.
+   * The mutation's `variables` identify the one row actually in flight.
+   */
+  const updatingId = statusMutation.isPending ? statusMutation.variables?.applicationId : undefined;
+
   if (isPending) return <LoadingState label="Loading candidates…" />;
   if (isError) {
     return (
       <ErrorState
         message={
-          (error as { response?: { status?: number } })?.response?.status === 404
+          getErrorStatus(error) === 404
             ? 'This job does not exist, or it belongs to another company.'
             : getErrorMessage(error)
         }
@@ -141,7 +150,8 @@ export function CandidatesPage() {
               onChangeStatus={(status, note) =>
                 statusMutation.mutate({ applicationId: candidate.id, status, note })
               }
-              isUpdating={statusMutation.isPending}
+              isUpdating={updatingId === candidate.id}
+              isDisabled={updatingId !== undefined && updatingId !== candidate.id}
             />
           ))}
         </ul>
@@ -156,12 +166,16 @@ function CandidateCard({
   onToggle,
   onChangeStatus,
   isUpdating,
+  isDisabled,
 }: {
   candidate: Candidate;
   isExpanded: boolean;
   onToggle: () => void;
   onChangeStatus: (status: ApplicationStatus, note?: string) => void;
+  /** This row's own action is in flight. */
   isUpdating: boolean;
+  /** A *different* row's action is in flight, so this one must not start another. */
+  isDisabled: boolean;
 }) {
   const [note, setNote] = useState('');
 
@@ -211,6 +225,7 @@ function CandidateCard({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={1000}
+            disabled={isDisabled}
           />
 
           <div className="mt-2 flex flex-wrap gap-2">
@@ -220,6 +235,7 @@ function CandidateCard({
                 variant={status === 'ACCEPTED' ? 'primary' : status === 'REJECTED' ? 'danger' : 'secondary'}
                 onClick={() => handleStatusClick(status)}
                 isLoading={isUpdating}
+                disabled={isDisabled}
                 className="text-xs"
               >
                 {STATUS_LABELS[status]}

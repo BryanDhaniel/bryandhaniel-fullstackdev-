@@ -71,11 +71,19 @@ export function formatDate(iso: string): string {
   }).format(new Date(iso));
 }
 
-/** Initials for the company avatar placeholder, e.g. "PT Teknologi" -> "PT". */
+/**
+ * Initials for the company avatar, e.g. "PT Teknologi Nusantara" -> "PT".
+ *
+ * A single-word name takes its first two letters ("Bank" -> "BA") rather than
+ * one, which would look like a truncation rather than an abbreviation. Names
+ * with no usable characters fall back to "?" so the avatar is never blank.
+ */
 export function companyInitials(name: string): string {
-  const words = name.replace(/[^a-zA-Z0-9\s]/g, '').trim().split(/\s+/);
-  if (words.length === 0 || !words[0]) return '?';
+  const words = name.replace(/[^a-zA-Z0-9\s]/g, '').trim().split(/\s+/).filter(Boolean);
+
+  if (words.length === 0) return '?';
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 

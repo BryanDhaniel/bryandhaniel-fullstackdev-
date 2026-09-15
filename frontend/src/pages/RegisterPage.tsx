@@ -74,11 +74,17 @@ export function RegisterPage() {
                   key={option.value}
                   className={cx(
                     'cursor-pointer rounded-lg border p-3 transition',
+                    'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-500 has-[:focus-visible]:ring-offset-2',
                     role === option.value
                       ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500'
                       : 'border-slate-300 bg-white hover:border-slate-400',
                   )}
                 >
+                  {/* Visually hidden rather than `display:none`, so the radio
+                      stays in the tab order and keeps its native arrow-key
+                      behaviour. The focus ring is drawn on the label via
+                      `has-[:focus-visible]`, because the input itself is
+                      invisible and an outline on it would never be seen. */}
                   <input
                     type="radio"
                     name="role"

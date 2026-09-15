@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { jobsApi } from '../api/endpoints';
+import { getErrorMessage } from '../api/client';
 import type { JobType } from '../api/types';
 import { JOB_TYPE_LABELS } from '../api/types';
 import { Button } from '../components/Button';
 import { CompanyAvatar, EmptyState, ErrorState, LoadingState } from '../components/ui';
-import { formatRelativeTime, formatSalary, jobTypeLabel } from '../lib/format';
+import { formatRelativeTime, formatSalary, jobTypeLabel, cx } from '../lib/format';
 
 const JOB_TYPES: JobType[] = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP', 'FREELANCE'];
 
@@ -26,11 +27,18 @@ export function JobListPage() {
   // The values actually sent to the API, committed from the inputs above.
   const [applied, setApplied] = useState({ q: '', location: '', jobType: '' as JobType | '' });
 
-  // Any filter change must return to page 1, or the user can land on a page
-  // that no longer exists for the narrower result set.
-  useEffect(() => {
+  /**
+   * Commits the filters and returns to page 1 in one update.
+   *
+   * Resetting the page in a `useEffect` on `applied` would work, but only after
+   * an extra render — and that render fires a request for the new filters on
+   * the *old* page number, which is a page of results the user never asked for
+   * and usually beyond the end of the narrower result set.
+   */
+  const commitFilters = (next: { q: string; location: string; jobType: JobType | '' }) => {
+    setApplied(next);
     setPage(1);
-  }, [applied.q, applied.location, applied.jobType]);
+  };
 
   const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['jobs', applied.q, applied.location, applied.jobType, page],
@@ -42,18 +50,21 @@ export function JobListPage() {
         page,
         limit: 10,
       }),
+    // Keeps the current page on screen while the next one loads, so the list
+    // does not collapse to a spinner on every pagination click.
+    placeholderData: (previous) => previous,
   });
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    setApplied({ q: searchInput, location: locationInput, jobType });
+    commitFilters({ q: searchInput, location: locationInput, jobType });
   };
 
   const handleReset = () => {
     setSearchInput('');
     setLocationInput('');
     setJobType('');
-    setApplied({ q: '', location: '', jobType: '' });
+    commitFilters({ q: '', location: '', jobType: '' });
   };
 
   const hasFilters = Boolean(applied.q || applied.location || applied.jobType);
@@ -134,7 +145,7 @@ export function JobListPage() {
       {isPending ? (
         <LoadingState label="Loading jobs…" />
       ) : isError ? (
-        <ErrorState message={`Could not load jobs. ${(error as Error).message}`} onRetry={() => refetch()} />
+        <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />
       ) : data.data.length === 0 ? (
         <EmptyState
           title="No jobs match your filters"
@@ -143,7 +154,9 @@ export function JobListPage() {
         />
       ) : (
         <>
-          <ul className="space-y-3">
+          {/* The previous page stays visible during a refetch (`placeholderData`),
+              so a dimmed list is what tells the user the results are updating. */}
+          <ul className={cx('space-y-3 transition-opacity', isFetching && 'opacity-60')} aria-busy={isFetching}>
             {data.data.map((job) => (
               <li key={job.id}>
                 <Link
