@@ -26,3 +26,8 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# Database dumps / backups — may contain personal data, never commit
+.backup/
+*.dump
+*.sql.gz

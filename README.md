@@ -20,6 +20,7 @@ workflow, and every status change is recorded in an append-only history.
 3. [Demo accounts](#3-demo-accounts)
 4. [Project structure](#4-project-structure)
 5. [Running without Docker](#5-running-without-docker)
+   - [5.1 Native PostgreSQL 18](#51-native-postgresql-18)
 6. [Environment variables](#6-environment-variables)
 7. [Database schema](#7-database-schema)
 8. [Verifying the build](#8-verifying-the-build)
@@ -67,8 +68,8 @@ asked for functional correctness, clean code, sound database design, a solid API
 ### Prerequisites
 
 - **Node.js 20+** (`node --version`)
-- **Docker** with Compose, *or* a local PostgreSQL 16 ([§5](#5-running-without-docker) covers
-  the no-Docker path)
+- **PostgreSQL 16 or newer** — either the bundled Docker Compose stack, or a native install
+  ([§5](#5-running-without-docker) covers the native path)
 
 ### Steps
 
@@ -77,7 +78,7 @@ asked for functional correctness, clean code, sound database design, a solid API
 git clone <repository-url> jobapp
 cd jobapp
 
-# 2. Start PostgreSQL
+# 2. Start PostgreSQL (skip if using a native install — see §5.1)
 docker compose up -d
 
 # 3. Configure and start the backend
@@ -106,8 +107,9 @@ npm run dev                   # http://localhost:5173
 Open <http://localhost:5173> and log in with one of the [demo accounts](#3-demo-accounts).
 
 > **Ports.** The backend listens on `3000`, the frontend dev server on `5173`, and PostgreSQL on
-> `5432`. The frontend proxies `/api/*` to the backend, so there is no CORS configuration to
-> adjust during development and no API URL to hardcode in the client.
+> `5432` (Docker) or `5433` (native install — see [§5.1](#51-native-postgresql-18)). The
+> frontend proxies `/api/*` to the backend, so there is no CORS configuration to adjust during
+> development and no API URL to hardcode in the client.
 
 ---
 
@@ -202,7 +204,7 @@ jobapp/
 
 ## 5. Running without Docker
 
-Any PostgreSQL 16 instance works; only the connection string changes.
+Any PostgreSQL 16 or newer instance works; only the connection string changes.
 
 **Using an existing local PostgreSQL:**
 
@@ -215,7 +217,7 @@ psql -U postgres -c "CREATE DATABASE indokerja OWNER indokerja;"
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env:
+# Edit .env so the port matches your server:
 #   DATABASE_URL="postgresql://indokerja:indokerja@localhost:5432/indokerja?schema=public"
 
 npx prisma migrate deploy
@@ -228,9 +230,43 @@ npm run start:dev
 > `P3014 — could not create the shadow database`. Grant it with
 > `ALTER ROLE indokerja CREATEDB;`.
 
-**Using a different host or port:** change `DATABASE_URL` in `backend/.env`. If PostgreSQL is
-already on `5432`, either stop it or map the container elsewhere (`docker-compose.yml`,
-`ports:` — for example `"5433:5432"`) and update the connection string to match.
+**Using a different host or port:** change `DATABASE_URL` in `backend/.env`. The two supported
+port choices are `5432` for the Docker stack (see `docker-compose.yml`) and `5433` for the
+native PostgreSQL 18 install documented in [§5.1](#51-native-postgresql-18). Whichever you
+pick must match what the server actually listens on.
+
+### 5.1 Native PostgreSQL 18
+
+The reference machine for this project runs PostgreSQL 18 installed natively instead of
+Docker, registered as the Windows service `postgresql-x64-18`.
+
+| Setting | Value |
+|---|---|
+| Install directory | `C:\Program Files\PostgreSQL\18` |
+| Data directory | `C:\Program Files\PostgreSQL\18\data` |
+| Port | `5433` |
+| Service name | `postgresql-x64-18` |
+| Role / password | `indokerja` / `indokerja` |
+| Database | `indokerja` |
+
+Because it is a real Windows service, it starts with the machine — there is no database
+process to launch by hand. Verify it is listening with:
+
+```bash
+netstat -ano | grep LISTENING | grep ":5433"
+```
+
+`pg_dump`, `psql` and `pg_restore` all ship with the installer, so backups and ad-hoc queries
+need no extra tooling:
+
+```bash
+"/c/Program Files/PostgreSQL/18/bin/pg_dump.exe" \
+  -h 127.0.0.1 -p 5433 -U indokerja -d indokerja -f "C:/path/to/backup.sql"
+```
+
+> **Windows path gotcha.** Pass `C:/...` style paths to the PostgreSQL binaries. Git Bash
+> rewrites `/tmp/...` into an MSYS path they cannot resolve, and `pg_dump -f /tmp/x.sql` fails
+> *silently* — no file written, exit code 0.
 
 **Development migrations.** For schema changes during development use
 `npx prisma migrate dev --name <description>`, which writes a new SQL migration *and* applies
@@ -422,12 +458,18 @@ Two choices that are not ADRs but matter:
 ## 10. Troubleshooting
 
 **`P1001: Can't reach database server`**
-PostgreSQL is not running or `DATABASE_URL` is wrong. Check `docker compose ps`, or test the
-connection: `psql "$DATABASE_URL" -c 'select 1'`.
+PostgreSQL is not running or `DATABASE_URL` is wrong. For the Docker stack check
+`docker compose ps`; for a native install check the Windows service (`services.msc` →
+`postgresql-x64-18`) or that the port is listening. Test the connection directly:
+`psql "$DATABASE_URL" -c 'select 1'`.
 
 **`P3014: could not create the shadow database` / `permission denied to create database`**
 The role lacks `CREATEDB`. `psql -U postgres -c "ALTER ROLE indokerja CREATEDB;"`. Only
 `migrate dev` needs it; `migrate deploy` does not.
+
+**`ECONNREFUSED 127.0.0.1:5433`**
+You are pointed at the native PostgreSQL 18 install but it is not running. Start the
+`postgresql-x64-18` service, or change `DATABASE_URL` to `5432` if you meant to use Docker.
 
 **`JWT_ACCESS_SECRET` error at startup**
 You are running with `NODE_ENV=production` but a placeholder secret. Set a real one:
